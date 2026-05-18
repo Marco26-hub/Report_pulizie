@@ -250,11 +250,23 @@ def test_admin_dashboard(client):
     assert response.status_code == 200
     assert b"Dashboard Admin" in response.data
     assert b"Admin e operatori" in response.data
+    assert b"Diagnostica" in response.data
+
+
+def test_admin_diagnostics(client):
+    response = client.get("/admin/diagnostics")
+    assert response.status_code == 200
+    assert b"Diagnostica sistema" in response.data
+    assert b"Database SQLite" in response.data
+    assert b"Interconnessioni route" in response.data
+    assert b"Generazione PDF" in response.data
 
 
 def test_operator_cannot_access_admin(client):
     login_as(client, "operatore", "operatore123")
     response = client.get("/admin")
+    assert response.status_code == 403
+    response = client.get("/admin/diagnostics")
     assert response.status_code == 403
 
 

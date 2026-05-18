@@ -15,6 +15,7 @@ Web app locale per creare, salvare e consultare report pulizie secondo le specif
 - Azioni WhatsApp, Telegram ed email con messaggi precompilati
 - Login con ruoli admin/operatore
 - Dashboard admin con filtri, approvazione/contestazione e log invii
+- Diagnostica admin per fallback, interconnessioni e runtime
 
 ## Requisiti
 
@@ -118,6 +119,7 @@ Campi supportati:
 - `/reports/new`: nuovo report
 - `/`: elenco report
 - `/admin`: dashboard admin
+- `/admin/diagnostics`: diagnostica fallback/interconnessioni
 - `/admin/photos`: archivio foto
 - `/reports/export.csv`: export CSV compatibile con Excel
 - `/login`: login admin/operatore

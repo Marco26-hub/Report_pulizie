@@ -454,6 +454,63 @@ summary {
   color: #f8e8bd;
 }
 
+.diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.diagnostic-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem;
+  background: #fffdf7;
+}
+
+.diagnostic-card h3 {
+  margin: 0.5rem 0 0.35rem;
+}
+
+.diagnostic-card p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.diagnostic-card.ok {
+  border-color: #b7d9bd;
+}
+
+.diagnostic-card.warn {
+  border-color: #e6c266;
+}
+
+.diagnostic-card.error {
+  border-color: #e08a8a;
+}
+
+.diagnostic-badge {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 850;
+  padding: 0.28rem 0.55rem;
+}
+
+.diagnostic-badge.ok {
+  background: #dff3df;
+  color: #1d5f2b;
+}
+
+.diagnostic-badge.warn {
+  background: #fff1bf;
+  color: #70460d;
+}
+
+.diagnostic-badge.error {
+  background: #fde2e2;
+  color: #9b1c1c;
+}
+
 .login-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);

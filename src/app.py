@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote_plus, urlparse
 
 from dotenv import load_dotenv
-from flask import Flask, abort, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, current_app, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -170,6 +170,7 @@ def _save_report_photos(report: ReportPulizia) -> None:
         original_name = secure_filename(uploaded_file.filename)
         extension = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
         if extension not in ALLOWED_PHOTO_EXTENSIONS:
+            current_app.logger.warning("Foto ignorata per estensione non valida: %s", original_name)
             continue
 
         upload_root.mkdir(parents=True, exist_ok=True)
@@ -226,6 +227,133 @@ def _build_report_pdf(report: ReportPulizia) -> tuple[bytes, str]:
     safe_operatore = secure_filename(report.operatore or "operatore")
     filename = f"report-pulizia-{safe_cliente}-{report.data.strftime('%Y-%m-%d')}-{safe_operatore}.pdf"
     return pdf_bytes, filename
+
+
+def _diagnostic_item(name: str, status: str, detail: str) -> dict[str, str]:
+    return {"name": name, "status": status, "detail": detail}
+
+
+def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
+    checks: list[dict[str, str]] = []
+
+    try:
+        db.session.execute(text("SELECT 1"))
+        checks.append(_diagnostic_item("Database SQLite", "ok", "Connessione attiva"))
+    except Exception as exc:
+        checks.append(_diagnostic_item("Database SQLite", "error", str(exc)))
+
+    user_count = User.query.count()
+    checks.append(
+        _diagnostic_item(
+            "Utenti",
+            "ok" if user_count >= 2 else "warn",
+            f"{user_count} utenti configurati",
+        )
+    )
+
+    template_path = BASE_DIR / "templates" / "report_template.md"
+    template_fields = load_report_template_fields(BASE_DIR)
+    expected_template_keys = {"data", "cliente", "operatore", "attivita_svolte", "totale_ore"}
+    template_keys = {field.key for field in template_fields}
+    if not template_path.exists():
+        checks.append(_diagnostic_item("Template report Markdown", "error", "File templates/report_template.md mancante"))
+    elif not expected_template_keys.issubset(template_keys):
+        missing = ", ".join(sorted(expected_template_keys - template_keys))
+        checks.append(_diagnostic_item("Template report Markdown", "warn", f"Campi chiave mancanti: {missing}"))
+    else:
+        checks.append(_diagnostic_item("Template report Markdown", "ok", f"{len(template_fields)} campi caricati"))
+
+    try:
+        plans = load_activity_plans(BASE_DIR)
+        checks.append(
+            _diagnostic_item(
+                "Piani attività Markdown",
+                "ok" if plans else "warn",
+                f"{len(plans)} piani caricati",
+            )
+        )
+    except Exception as exc:
+        checks.append(_diagnostic_item("Piani attività Markdown", "error", str(exc)))
+
+    try:
+        sections = load_checklist_sections(BASE_DIR)
+        item_count = sum(len(section.items) for section in sections)
+        checks.append(
+            _diagnostic_item(
+                "Checklist V1",
+                "ok" if sections and item_count else "error",
+                f"{len(sections)} sezioni, {item_count} attività",
+            )
+        )
+    except Exception as exc:
+        checks.append(_diagnostic_item("Checklist V1", "error", str(exc)))
+
+    try:
+        anomalies = load_anomalies(BASE_DIR)
+        has_none = "Nessuna anomalia" in anomalies
+        checks.append(
+            _diagnostic_item(
+                "Anomalie V1",
+                "ok" if anomalies and has_none else "warn",
+                f"{len(anomalies)} anomalie; Nessuna anomalia={'presente' if has_none else 'mancante'}",
+            )
+        )
+    except Exception as exc:
+        checks.append(_diagnostic_item("Anomalie V1", "error", str(exc)))
+
+    upload_dir = Path(app.config["UPLOAD_FOLDER"])
+    try:
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        probe = upload_dir / ".diagnostic-write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        checks.append(_diagnostic_item("Archivio upload foto", "ok", str(upload_dir)))
+    except Exception as exc:
+        checks.append(_diagnostic_item("Archivio upload foto", "error", str(exc)))
+
+    latest_report = ReportPulizia.query.order_by(ReportPulizia.id.desc()).first()
+    if latest_report is None:
+        checks.append(_diagnostic_item("Generazione PDF", "warn", "Nessun report disponibile per test PDF"))
+    else:
+        try:
+            pdf_bytes, filename = _build_report_pdf(latest_report)
+            checks.append(_diagnostic_item("Generazione PDF", "ok", f"{filename} ({len(pdf_bytes)} byte)"))
+        except Exception as exc:
+            checks.append(_diagnostic_item("Generazione PDF", "error", str(exc)))
+
+    required_endpoints = {
+        "login",
+        "index",
+        "new_report",
+        "admin_dashboard",
+        "photo_archive",
+        "report_pdf_export",
+        "report_pdf_download",
+        "reports_csv",
+        "healthz",
+    }
+    endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+    missing_endpoints = required_endpoints - endpoints
+    checks.append(
+        _diagnostic_item(
+            "Interconnessioni route",
+            "ok" if not missing_endpoints else "error",
+            "Tutte le route critiche presenti" if not missing_endpoints else f"Mancano: {', '.join(sorted(missing_endpoints))}",
+        )
+    )
+
+    secret_key = app.config.get("SECRET_KEY")
+    if secret_key in {"dev-secret-key", "change-me"}:
+        checks.append(_diagnostic_item("SECRET_KEY", "warn", "Usare una SECRET_KEY personalizzata prima della consegna"))
+    else:
+        checks.append(_diagnostic_item("SECRET_KEY", "ok", "Configurata"))
+
+    if os.getenv("FLASK_DEBUG", "0") == "1":
+        checks.append(_diagnostic_item("Modalità debug", "warn", "FLASK_DEBUG=1: usare gunicorn/FLASK_DEBUG=0 in consegna"))
+    else:
+        checks.append(_diagnostic_item("Modalità debug", "ok", "Debug disattivato"))
+
+    return checks
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -342,6 +470,14 @@ def create_app(test_config: dict | None = None) -> Flask:
             sends=sends,
             users=users,
         )
+
+    @app.get("/admin/diagnostics")
+    @admin_required
+    def admin_diagnostics():
+        checks = _run_diagnostics(app)
+        status_order = {"error": 0, "warn": 1, "ok": 2}
+        overall = min((check["status"] for check in checks), key=lambda status: status_order[status], default="ok")
+        return render_template("admin_diagnostics.html", checks=checks, overall=overall)
 
     @app.post("/admin/reports/<int:report_id>/status")
     @admin_required

@@ -10,7 +10,10 @@
       <span>{{ users|length }} utenti</span>
     </div>
   </div>
-  <a class="button quick-pdf-button" href="{{ url_for('reports_csv') }}">Esporta CSV</a>
+  <div class="export-actions">
+    <a class="button quick-pdf-button" href="{{ url_for('reports_csv') }}">Esporta CSV</a>
+    <a class="button secondary" href="{{ url_for('admin_diagnostics') }}">Diagnostica</a>
+  </div>
 </section>
 
 <section class="report-metrics">

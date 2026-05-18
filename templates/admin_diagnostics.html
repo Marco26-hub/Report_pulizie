@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Diagnostica{% endblock %}
+{% block content %}
+<section class="report-hero">
+  <div>
+    <p class="eyebrow">Debug interconnessioni</p>
+    <h2>Diagnostica sistema</h2>
+    <div class="hero-meta">
+      <span class="diagnostic-badge {{ overall }}">Stato: {{ overall|upper }}</span>
+      <span>{{ checks|length }} controlli</span>
+    </div>
+  </div>
+  <a class="button quick-pdf-button" href="{{ url_for('admin_dashboard') }}">Torna admin</a>
+</section>
+
+<section class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Fallback e collegamenti</p>
+      <h3>Controlli runtime</h3>
+    </div>
+  </div>
+  <div class="diagnostic-grid">
+    {% for check in checks %}
+      <article class="diagnostic-card {{ check.status }}">
+        <span class="diagnostic-badge {{ check.status }}">{{ check.status|upper }}</span>
+        <h3>{{ check.name }}</h3>
+        <p>{{ check.detail }}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

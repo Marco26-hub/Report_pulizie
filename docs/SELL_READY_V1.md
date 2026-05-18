@@ -16,6 +16,7 @@ Questa versione e pronta per demo commerciale e primo pilota locale/self-hosted.
 - CSV Excel
 - WhatsApp, Telegram ed email con messaggio precompilato
 - Healthcheck `/healthz`
+- Diagnostica admin `/admin/diagnostics`
 - Avvio produzione con `gunicorn`
 
 ## Prima di consegnare a un cliente
@@ -34,4 +35,3 @@ Questa versione e pronta per demo commerciale e primo pilota locale/self-hosted.
 - Upload video
 - Supabase Auth/RLS/Storage
 - Multi-azienda cloud
-
