@@ -115,6 +115,9 @@
       {% for section in checklist_sections %}
         <details class="sub-details">
           <summary>{{ section.title }}</summary>
+          <div class="section-tools">
+            <button type="button" class="select-section-button">Seleziona tutto</button>
+          </div>
           <div class="checkbox-list">
             {% for item in section.items %}
               <label>
@@ -218,6 +221,7 @@
   const totalHours = document.querySelector("#totale-ore");
   const activitySearch = document.querySelector("#activity-search");
   const selectedCount = document.querySelector("#selected-count");
+  const sectionSelectButtons = Array.from(document.querySelectorAll(".select-section-button"));
 
   function setActivities(items) {
     const wanted = new Set(items);
@@ -266,6 +270,17 @@
 
   checkboxes.forEach((checkbox) => {
     checkbox.addEventListener("change", updateSelectedCount);
+  });
+
+  sectionSelectButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const section = button.closest(".sub-details");
+      const sectionCheckboxes = Array.from(section.querySelectorAll("input[name='attivita_checklist']"));
+      sectionCheckboxes.forEach((checkbox) => {
+        checkbox.checked = true;
+      });
+      updateSelectedCount();
+    });
   });
 
   activitySearch?.addEventListener("input", () => {

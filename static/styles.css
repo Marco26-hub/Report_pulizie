@@ -269,6 +269,20 @@ summary {
   margin: 0.5rem 0;
 }
 
+.section-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.2rem 0 0.7rem;
+}
+
+.section-tools button {
+  background: #3a2a18;
+  color: #fff7dc;
+  min-height: auto;
+  padding: 0.45rem 0.7rem;
+  box-shadow: none;
+}
+
 .inline-grid,
 .button-row,
 .actions {

@@ -406,6 +406,24 @@ def test_new_report_has_mobile_first_controls(client):
     assert b"mobile-bottom-actions" in response.data
 
 
+def test_new_report_has_select_all_for_activity_sections(client):
+    response = client.get("/reports/new")
+    assert response.status_code == 200
+    assert b"select-section-button" in response.data
+    assert b"Seleziona tutto" in response.data
+
+
+def test_new_report_has_complete_group_packages(client):
+    response = client.get("/reports/new")
+    assert response.status_code == 200
+    assert b"Pulizia generale completa" in response.data
+    assert b"Pulizia cucina completa" in response.data
+    assert b"Pulizia bagni completa" in response.data
+    assert b"Pulizia camere completa" in response.data
+    assert b"Pulizia vetri e infissi completa" in response.data
+    assert b"Kit benvenuto completo" in response.data
+
+
 def test_load_activity_plans_reads_md_files(tmp_path: Path):
     plan_dir = tmp_path / "piani"
     plan_dir.mkdir()

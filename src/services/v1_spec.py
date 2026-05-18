@@ -98,13 +98,27 @@ def load_anomalies(base_dir: Path) -> list[str]:
 def build_quick_templates(sections: list[ChecklistSection]) -> list[QuickTemplate]:
     by_section = {section.title: section.items for section in sections}
 
+    def section_package_name(section_title: str) -> str:
+        normalized = section_title.replace("/", " ").replace("  ", " ").strip().lower()
+        if normalized.startswith("pulizia "):
+            return f"{section_title} completa"
+        if "kit benvenuto" in normalized:
+            return "Kit benvenuto completo"
+        return f"Pulizia {normalized} completa"
+
     def pick(*section_names: str, limit: int | None = None) -> list[str]:
         items: list[str] = []
         for section_name in section_names:
             items.extend(by_section.get(section_name, []))
         return items[:limit] if limit else items
 
-    return [
+    section_templates = [
+        QuickTemplate(section_package_name(section.title), section.items)
+        for section in sections
+        if section.items
+    ]
+
+    workflow_templates = [
         QuickTemplate("Appartamento standard", pick("Pulizia generale", "Bagni", "Camere", "Cucina", limit=18)),
         QuickTemplate("Villa completa", pick("Pulizia generale", "Cucina", "Bagni", "Camere", "Soggiorno / Living", "Esterni")),
         QuickTemplate("B&B check-in/check-out", pick("Pulizia generale", "Bagni", "Camere", "Cucina", limit=24)),
@@ -114,3 +128,5 @@ def build_quick_templates(sections: list[ChecklistSection]) -> list[QuickTemplat
         QuickTemplate("Ufficio", pick("Pulizia generale", "Bagni", "Vetri e infissi", limit=18)),
         QuickTemplate("Personalizzato", []),
     ]
+
+    return section_templates + workflow_templates
