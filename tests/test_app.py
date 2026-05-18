@@ -378,6 +378,9 @@ def test_new_report_loads_markdown_activity_plans(client):
     assert response.status_code == 200
     assert b"Procedura operativa" in response.data
     assert b"Piano Pulizia Uffici" in response.data
+    assert b"Piano Pulizia Villa" in response.data
+    assert b"Piano Pulizia B&amp;B" in response.data
+    assert b"Piano Pulizia Appartamento Privato" in response.data
     assert b"Svuotamento cestini" in response.data
 
 
@@ -524,6 +527,9 @@ def test_admin_dashboard_shows_editable_operational_procedures(client):
     assert b"Crea procedura" in response.data
     assert b"Sincronizza Markdown" in response.data
     assert b"Piano Pulizia Uffici" in response.data
+    assert b"Piano Pulizia Villa" in response.data
+    assert b"Piano Pulizia B&amp;B" in response.data
+    assert b"Piano Pulizia Appartamento Privato" in response.data
     assert b"Salva procedura" in response.data
 
 
