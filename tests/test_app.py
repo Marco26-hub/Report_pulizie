@@ -88,6 +88,12 @@ def test_index_lists_reports(client):
     assert b"Torino" in response.data
 
 
+def test_reports_alias_lists_reports(client):
+    response = client.get("/reports")
+    assert response.status_code == 200
+    assert b"Report" in response.data
+
+
 def test_report_not_found(client):
     response = client.get("/reports/999")
     assert response.status_code == 404

@@ -418,6 +418,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         return redirect(url_for("login"))
 
     @app.get("/")
+    @app.get("/reports")
     @login_required
     def index():
         user = _current_user()
