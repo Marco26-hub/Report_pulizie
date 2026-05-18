@@ -150,8 +150,8 @@ def test_pdf_export_page_starts_download_flow(client):
 
     assert response.status_code == 200
     assert b"Scarica il PDF" in response.data
-    assert b"downloadPdf" in response.data
     assert f"{report_url}/pdf/download".encode() in response.data
+    assert f"{report_url}/pdf/view".encode() in response.data
 
 
 def test_forced_pdf_download_uses_binary_attachment(client):
@@ -172,6 +172,27 @@ def test_forced_pdf_download_uses_binary_attachment(client):
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "application/octet-stream"
     assert "attachment" in response.headers["Content-Disposition"]
+    assert response.data.startswith(b"%PDF")
+
+
+def test_pdf_view_opens_inline(client):
+    create_response = client.post(
+        "/reports",
+        data={
+            "data": "2026-05-18",
+            "sede": "Bologna",
+            "operatore": "Marco",
+            "attivita_svolte": "Pulizia bagni",
+        },
+        follow_redirects=False,
+    )
+    report_url = create_response.headers["Location"]
+
+    response = client.get(f"{report_url}/pdf/view")
+
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "application/pdf"
+    assert "inline" in response.headers["Content-Disposition"]
     assert response.data.startswith(b"%PDF")
 
 

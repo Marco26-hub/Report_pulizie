@@ -329,6 +329,7 @@ def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
         "photo_archive",
         "report_pdf_export",
         "report_pdf_download",
+        "report_pdf_view",
         "reports_csv",
         "healthz",
     }
@@ -604,7 +605,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "pdf_export.html",
             report=report,
             filename=filename,
-            pdf_url=url_for("report_pdf", report_id=report.id),
+            pdf_url=url_for("report_pdf_view", report_id=report.id),
             forced_pdf_url=url_for("report_pdf_download", report_id=report.id),
         )
 
@@ -640,6 +641,19 @@ def create_app(test_config: dict | None = None) -> Flask:
             as_attachment=True,
             download_name=filename,
             mimetype="application/octet-stream",
+            max_age=0,
+        )
+
+    @app.get("/reports/<int:report_id>/pdf/view")
+    @login_required
+    def report_pdf_view(report_id: int):
+        report = _report_or_404(report_id)
+        pdf_bytes, filename = _build_report_pdf(report)
+        return send_file(
+            path_or_file=BytesIO(pdf_bytes),
+            as_attachment=False,
+            download_name=filename,
+            mimetype="application/pdf",
             max_age=0,
         )
 

@@ -10,43 +10,10 @@
 
   <div class="export-actions">
     <a id="forced-download" class="button quick-pdf-button" href="{{ forced_pdf_url }}" download="{{ filename }}">Scarica PDF ora</a>
-    <a class="button secondary" href="{{ pdf_url }}" target="_blank" rel="noopener">Apri PDF</a>
+    <a class="button secondary" href="{{ pdf_url }}">Apri PDF</a>
     <a class="button ghost" href="{{ url_for('report_detail', report_id=report.id) }}">Torna al report</a>
   </div>
 
-  <p id="download-status" class="download-status">Se il download non parte, premi “Scarica PDF ora”.</p>
+  <p class="download-status">Il download usa un link diretto. Se il browser apre il file, usa “Apri PDF” e poi il comando di salvataggio del browser.</p>
 </section>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  const button = document.querySelector("#forced-download");
-  const statusLabel = document.querySelector("#download-status");
-
-  async function downloadPdf() {
-    statusLabel.textContent = "Download in corso...";
-    try {
-      const response = await fetch("{{ forced_pdf_url }}?download=1&t=" + Date.now());
-      if (!response.ok) throw new Error("PDF non disponibile");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "{{ filename }}";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-      statusLabel.textContent = "Download avviato. Se non parte, usa il pulsante Apri PDF.";
-    } catch (error) {
-      statusLabel.textContent = "Download automatico non riuscito. Premi “Scarica PDF ora”.";
-    }
-  }
-
-  button?.addEventListener("click", (event) => {
-    event.preventDefault();
-    downloadPdf();
-  });
-  window.addEventListener("load", downloadPdf);
-</script>
 {% endblock %}

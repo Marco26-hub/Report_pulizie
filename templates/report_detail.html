@@ -54,7 +54,7 @@
   </div>
   <div class="actions premium-actions">
     <a class="button" href="{{ pdf_export_url }}">Scarica PDF</a>
-    <a class="button secondary" href="{{ url_for('report_pdf', report_id=report.id) }}" target="_blank" rel="noopener">Apri PDF</a>
+    <a class="button secondary" href="{{ url_for('report_pdf_view', report_id=report.id) }}">Apri PDF</a>
     <button class="secondary" type="button" onclick="window.print()">Stampa</button>
     <form method="post" action="{{ url_for('log_send', report_id=report.id, canale='whatsapp') }}">
       <button type="submit" onclick="window.open('{{ whatsapp_url }}', '_blank')">WhatsApp</button>
