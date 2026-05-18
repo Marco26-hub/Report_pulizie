@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+import secrets
+import time
+from datetime import datetime, timedelta
 from functools import wraps
 from io import BytesIO
 from pathlib import Path
@@ -9,6 +11,7 @@ from urllib.parse import quote_plus, urlparse
 
 from dotenv import load_dotenv
 from flask import Flask, abort, current_app, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from markupsafe import Markup, escape
 from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -31,6 +34,14 @@ from src.services.v1_spec import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 ALLOWED_PHOTO_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _resolve_db_path(path_value: str) -> Path:
@@ -41,7 +52,32 @@ def _resolve_db_path(path_value: str) -> Path:
     return path
 
 
+def _normalize_database_uri(uri: str) -> str:
+    if uri.startswith("postgres://"):
+        return uri.replace("postgres://", "postgresql+psycopg://", 1)
+    if uri.startswith("postgresql://") and "+psycopg" not in uri:
+        return uri.replace("postgresql://", "postgresql+psycopg://", 1)
+    return uri
+
+
+def _resolve_database_uri() -> str:
+    database_uri = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL") or os.getenv("SUPABASE_DATABASE_URL")
+    if database_uri:
+        return _normalize_database_uri(database_uri)
+
+    db_path_value = os.getenv("DATABASE_PATH", "data/report_pulizie.db")
+    db_path = _resolve_db_path(db_path_value)
+    return f"sqlite:///{db_path}"
+
+
+def _is_sqlite_database() -> bool:
+    return db.engine.url.get_backend_name() == "sqlite"
+
+
 def _migrate_sqlite_columns() -> None:
+    if not _is_sqlite_database():
+        return
+
     columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(report_pulizie)")).fetchall()}
     additions = {
         "cliente": "ALTER TABLE report_pulizie ADD COLUMN cliente VARCHAR(160)",
@@ -62,6 +98,48 @@ def _migrate_sqlite_columns() -> None:
             db.session.execute(text(statement))
     db.session.execute(text("UPDATE report_pulizie SET cliente = sede WHERE cliente IS NULL OR cliente = ''"))
     db.session.commit()
+
+
+def _csrf_enabled(app: Flask) -> bool:
+    return bool(app.config.get("WTF_CSRF_ENABLED", True)) and not bool(app.config.get("TESTING", False))
+
+
+def _csrf_token() -> str:
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _csrf_field() -> Markup:
+    return Markup(f'<input type="hidden" name="_csrf_token" value="{escape(_csrf_token())}" />')
+
+
+def _login_rate_key(username: str) -> str:
+    ip_address = request.access_route[0] if request.access_route else request.remote_addr or "unknown"
+    return f"{ip_address}:{username.lower()}"
+
+
+def _login_attempts_for(key: str, window_seconds: int) -> list[float]:
+    now = time.time()
+    attempts = [timestamp for timestamp in LOGIN_ATTEMPTS.get(key, []) if now - timestamp < window_seconds]
+    LOGIN_ATTEMPTS[key] = attempts
+    return attempts
+
+
+def _login_is_rate_limited(key: str, window_seconds: int, max_attempts: int) -> bool:
+    return len(_login_attempts_for(key, window_seconds)) >= max_attempts
+
+
+def _record_failed_login(key: str, window_seconds: int) -> None:
+    attempts = _login_attempts_for(key, window_seconds)
+    attempts.append(time.time())
+    LOGIN_ATTEMPTS[key] = attempts
+
+
+def _clear_login_attempts(key: str) -> None:
+    LOGIN_ATTEMPTS.pop(key, None)
 
 
 def _seed_default_users() -> None:
@@ -378,11 +456,19 @@ def _diagnostic_item(name: str, status: str, detail: str) -> dict[str, str]:
 def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
 
+    database_backend = db.engine.url.get_backend_name()
     try:
         db.session.execute(text("SELECT 1"))
-        checks.append(_diagnostic_item("Database SQLite", "ok", "Connessione attiva"))
+        database_status = "ok"
+        database_detail = "Connessione attiva"
+        if database_backend == "sqlite":
+            database_status = "warn"
+            database_detail = "SQLite locale attivo: ok per demo/self-hosted, usare Supabase Postgres per produzione cloud"
+        elif database_backend.startswith("postgresql"):
+            database_detail = "Postgres attivo: compatibile con Supabase"
+        checks.append(_diagnostic_item("Database", database_status, database_detail))
     except Exception as exc:
-        checks.append(_diagnostic_item("Database SQLite", "error", str(exc)))
+        checks.append(_diagnostic_item("Database", "error", str(exc)))
 
     user_count = User.query.count()
     checks.append(
@@ -522,20 +608,50 @@ def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
     else:
         checks.append(_diagnostic_item("Modalità debug", "ok", "Debug disattivato"))
 
+    if current_app.config.get("SESSION_COOKIE_SECURE"):
+        checks.append(_diagnostic_item("Cookie sicuri", "ok", "SESSION_COOKIE_SECURE attivo"))
+    else:
+        checks.append(_diagnostic_item("Cookie sicuri", "warn", "Attivare SESSION_COOKIE_SECURE=1 quando si usa HTTPS"))
+
+    if current_app.config.get("WTF_CSRF_ENABLED", True):
+        checks.append(_diagnostic_item("Protezione CSRF", "ok", "Token CSRF attivo sui form POST"))
+    else:
+        checks.append(_diagnostic_item("Protezione CSRF", "warn", "CSRF disattivato"))
+
+    demo_passwords = {
+        os.getenv("ADMIN_PASSWORD", "admin123"),
+        os.getenv("OPERATOR_PASSWORD", "operatore123"),
+    }
+    if "admin123" in demo_passwords or "operatore123" in demo_passwords:
+        checks.append(_diagnostic_item("Credenziali demo", "warn", "Cambiare password admin/operatore prima della produzione"))
+    else:
+        checks.append(_diagnostic_item("Credenziali demo", "ok", "Password demo non in uso dalle variabili ambiente"))
+
+    if current_app.config.get("SHOW_DEMO_CREDENTIALS", True):
+        checks.append(_diagnostic_item("Hint credenziali login", "warn", "Nascondere SHOW_DEMO_CREDENTIALS in produzione"))
+    else:
+        checks.append(_diagnostic_item("Hint credenziali login", "ok", "Hint credenziali demo nascosto"))
+
     return checks
 
 
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__, template_folder=str(BASE_DIR / "templates"), static_folder=str(BASE_DIR / "static"))
 
-    db_path_value = os.getenv("DATABASE_PATH", "data/report_pulizie.db")
-    db_path = _resolve_db_path(db_path_value)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+    app.config["SQLALCHEMY_DATABASE_URI"] = _resolve_database_uri()
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
     app.config["UPLOAD_FOLDER"] = str(BASE_DIR / "data" / "uploads")
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = _env_bool("SESSION_COOKIE_SECURE", False)
+    app.config["WTF_CSRF_ENABLED"] = _env_bool("WTF_CSRF_ENABLED", True)
+    app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "16")) * 1024 * 1024
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=int(os.getenv("SESSION_LIFETIME_MINUTES", "480")))
+    app.config["LOGIN_RATE_LIMIT_WINDOW_SECONDS"] = int(os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "300"))
+    app.config["LOGIN_RATE_LIMIT_MAX_ATTEMPTS"] = int(os.getenv("LOGIN_RATE_LIMIT_MAX_ATTEMPTS", "8"))
+    app.config["ENABLE_HSTS"] = _env_bool("ENABLE_HSTS", False)
+    app.config["SHOW_DEMO_CREDENTIALS"] = _env_bool("SHOW_DEMO_CREDENTIALS", True)
 
     if test_config:
         app.config.update(test_config)
@@ -553,13 +669,33 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.context_processor
     def inject_auth_context():
-        return {"current_user": _current_user()}
+        return {
+            "current_user": _current_user(),
+            "csrf_token": _csrf_token,
+            "csrf_field": _csrf_field,
+            "show_demo_credentials": app.config.get("SHOW_DEMO_CREDENTIALS", True),
+        }
+
+    @app.before_request
+    def protect_csrf():
+        if not _csrf_enabled(app):
+            return None
+        if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+            return None
+        sent_token = request.form.get("_csrf_token") or request.headers.get("X-CSRF-Token")
+        session_token = session.get("_csrf_token")
+        if not sent_token or not session_token or not secrets.compare_digest(sent_token, session_token):
+            abort(400)
+        return None
 
     @app.after_request
     def add_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(), microphone=()")
+        if app.config.get("ENABLE_HSTS"):
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         return response
 
     @app.get("/healthz")
@@ -578,9 +714,18 @@ def create_app(test_config: dict | None = None) -> Flask:
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
         next_url = _safe_next_url(request.form.get("next"))
+        rate_key = _login_rate_key(username)
+        window_seconds = app.config["LOGIN_RATE_LIMIT_WINDOW_SECONDS"]
+        max_attempts = app.config["LOGIN_RATE_LIMIT_MAX_ATTEMPTS"]
+        if _login_is_rate_limited(rate_key, window_seconds, max_attempts):
+            return render_template("login.html", error="Troppi tentativi. Riprova tra qualche minuto.", next_url=next_url), 429
+
         user = User.query.filter_by(username=username, active=True).first()
         if user is None or not check_password_hash(user.password_hash, password):
+            _record_failed_login(rate_key, window_seconds)
             return render_template("login.html", error="Credenziali non valide", next_url=next_url), 401
+        _clear_login_attempts(rate_key)
+        session.permanent = True
         session["user_id"] = user.id
         return redirect(next_url)
 

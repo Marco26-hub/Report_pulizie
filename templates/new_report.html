@@ -19,6 +19,7 @@
   </nav>
 
   <form method="post" action="{{ url_for('create_report') }}" class="form-grid mobile-report-form" enctype="multipart/form-data">
+    {{ csrf_field() }}
     <details id="step-dati" class="form-step" open>
       <summary>Dati intervento</summary>
       <label>

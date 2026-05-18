@@ -57,12 +57,15 @@
     <a class="button secondary" href="{{ url_for('report_pdf_view', report_id=report.id) }}">Apri PDF</a>
     <button class="secondary" type="button" onclick="window.print()">Stampa</button>
     <form method="post" action="{{ url_for('log_send', report_id=report.id, canale='whatsapp') }}">
+      {{ csrf_field() }}
       <button type="submit" onclick="window.open('{{ whatsapp_url }}', '_blank')">WhatsApp</button>
     </form>
     <form method="post" action="{{ url_for('log_send', report_id=report.id, canale='telegram') }}">
+      {{ csrf_field() }}
       <button type="submit" class="secondary" onclick="window.open('{{ telegram_url }}', '_blank')">Telegram</button>
     </form>
     <form method="post" action="{{ url_for('log_send', report_id=report.id, canale='email') }}">
+      {{ csrf_field() }}
       <button type="submit" class="secondary" onclick="window.location.href='{{ email_url }}'">Email</button>
     </form>
   </div>

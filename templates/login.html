@@ -9,6 +9,7 @@
   </div>
 
   <form method="post" action="{{ url_for('login_post') }}" class="login-card">
+    {{ csrf_field() }}
     <input type="hidden" name="next" value="{{ next_url }}" />
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
     <label>
@@ -20,7 +21,9 @@
       <input type="password" name="password" autocomplete="current-password" required />
     </label>
     <button type="submit">Accedi</button>
-    <p class="muted">Demo: admin/admin123 oppure operatore/operatore123</p>
+    {% if show_demo_credentials %}
+      <p class="muted">Demo: admin/admin123 oppure operatore/operatore123</p>
+    {% endif %}
   </form>
 </section>
 {% endblock %}

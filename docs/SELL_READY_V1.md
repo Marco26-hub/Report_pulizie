@@ -18,6 +18,9 @@ Questa versione e pronta per demo commerciale e primo pilota locale/self-hosted.
 - Healthcheck `/healthz`
 - Diagnostica admin `/admin/diagnostics`
 - Avvio produzione con `gunicorn`
+- Supporto Supabase Postgres tramite `SUPABASE_DB_URL` / `DATABASE_URL`
+- CSRF sui form POST
+- Rate limit leggero sul login
 
 ## Prima di consegnare a un cliente
 
@@ -26,6 +29,8 @@ Questa versione e pronta per demo commerciale e primo pilota locale/self-hosted.
 - Creare gli operatori reali da dashboard admin
 - Fare backup periodico di `data/report_pulizie.db` e `data/uploads/`
 - Usare HTTPS se pubblicata online
+- Usare Supabase Postgres per produzione cloud
+- Configurare `SESSION_COOKIE_SECURE=1` e `ENABLE_HSTS=1` dietro HTTPS
 
 ## Fuori dalla V1 locale
 

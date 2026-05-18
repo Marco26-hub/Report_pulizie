@@ -2,11 +2,11 @@
 
 Web app locale per creare, salvare e consultare report pulizie secondo le specifiche Markdown importate da `docs/v1_spec/`.
 
-- Persisitenza su SQLite
+- Persistenza su SQLite locale o Supabase Postgres
 - Report giornaliero mobile-first con bozza e completamento
 - Dati intervento, orari, pausa e totale ore automatico
 - Checklist attività letta da `docs/v1_spec/04_CHECKLIST_ATTIVITA_V1.md`
-- Pacchetti attività modificabili da dashboard admin e salvati in SQLite
+- Pacchetti attività modificabili da dashboard admin e salvati su database
 - Anomalie lette da `docs/v1_spec/05_ANOMALIE_NOTE_V1.md`
 - Procedure operative modificabili da dashboard admin e inizializzate dai piani Markdown in `piani/`
 - Template report letto da `templates/report_template.md`
@@ -75,7 +75,7 @@ pytest -q
 
 ## Procedure operative admin
 
-Le procedure disponibili nel form "Nuovo Report" vengono inizializzate dai file `.md` nella cartella `piani/` e poi salvate in SQLite.
+Le procedure disponibili nel form "Nuovo Report" vengono inizializzate dai file `.md` nella cartella `piani/` e poi salvate su database.
 
 Dalla dashboard `/admin`, sezione "Procedure operative", l'admin può:
 
@@ -102,7 +102,7 @@ Quando selezioni una procedura nel form, il campo "Attivita extra / manuali" vie
 
 ## Pacchetti attività admin
 
-I pacchetti rapidi del form "Nuovo Report" vengono inizializzati dalla checklist V1 al primo avvio e poi salvati in SQLite.
+I pacchetti rapidi del form "Nuovo Report" vengono inizializzati dalla checklist V1 al primo avvio e poi salvati su database.
 
 Dalla dashboard `/admin`, sezione "Pacchetti attività", l'admin può:
 
@@ -151,7 +151,7 @@ Campi supportati:
 ## Struttura progetto
 
 - `src/app.py`: entrypoint Flask e route
-- `src/models.py`: modello dati SQLite
+- `src/models.py`: modello dati SQLAlchemy
 - `src/services/reports.py`: validazioni e generazione PDF
 - `src/services/activity_plans.py`: import iniziale procedure da piani Markdown
 - `src/services/report_template.py`: lettura template report Markdown
@@ -169,4 +169,38 @@ Copia `.env.example` in `.env` e modifica se necessario:
 - `APP_PORT`: porta app
 - `FLASK_DEBUG`: `1` per debug, `0` per no debug
 - `DATABASE_PATH`: path file SQLite
+- `DATABASE_URL` / `SUPABASE_DB_URL`: connection string Supabase Postgres
 - `SECRET_KEY`: chiave sessione Flask
+- `WTF_CSRF_ENABLED`: protezione form POST
+- `SESSION_COOKIE_SECURE`: usare `1` quando l'app gira su HTTPS
+- `MAX_UPLOAD_MB`: limite massimo upload foto
+- `SHOW_DEMO_CREDENTIALS`: mostra/nasconde le credenziali demo nel login
+
+## Produzione con Supabase
+
+1. Crea un progetto Supabase.
+2. Copia la connection string Postgres da Supabase.
+3. Copia `.env.production.example` in `.env` sul server.
+4. Imposta `SUPABASE_DB_URL` o `DATABASE_URL`.
+5. Cambia `SECRET_KEY`, password admin e password operatore.
+6. Avvia con `gunicorn src.wsgi:app --bind 0.0.0.0:$PORT`.
+7. Apri `/admin/diagnostics` e verifica che il database risulti Postgres/Supabase.
+
+Per produzione online usa:
+
+- `FLASK_DEBUG=0`
+- `SESSION_COOKIE_SECURE=1`
+- `ENABLE_HSTS=1`
+- `SHOW_DEMO_CREDENTIALS=0`
+- HTTPS attivo sul dominio
+- backup configurato sul database Supabase
+
+## Backup Locale
+
+Per installazioni self-hosted con SQLite:
+
+```bash
+./scripts/backup_local.sh
+```
+
+Il backup locale copia `data/report_pulizie.db` e comprime `data/uploads/` dentro `backups/`.

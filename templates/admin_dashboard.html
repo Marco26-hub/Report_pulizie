@@ -31,6 +31,7 @@
     <div class="panel-actions">
       <p class="muted">{{ procedures|length }} procedure configurate</p>
       <form method="post" action="{{ url_for('admin_sync_default_procedures') }}">
+        {{ csrf_field() }}
         <button type="submit" class="secondary">Sincronizza Markdown</button>
       </form>
     </div>
@@ -39,6 +40,7 @@
   <p class="muted">Le procedure guidano il metodo di lavoro e compilano il campo attività extra nel form operatore. I pacchetti invece selezionano rapidamente le voci della checklist.</p>
 
   <form method="post" action="{{ url_for('admin_create_procedure') }}" class="package-create-form">
+    {{ csrf_field() }}
     <input type="text" name="title" maxlength="140" placeholder="Titolo procedura es. Pulizia uffici premium" required />
     <input type="number" name="sort_order" min="0" value="{{ procedures|length + 1 }}" aria-label="Ordine" />
     <textarea name="activities" rows="4" placeholder="Una attività o passaggio per riga" required></textarea>
@@ -49,6 +51,7 @@
     {% for procedure in procedures %}
       <article class="package-card {% if not procedure.active %}is-disabled{% endif %}">
         <form method="post" action="{{ url_for('admin_update_procedure', procedure_id=procedure.id) }}">
+          {{ csrf_field() }}
           <div class="package-card-top">
             <span class="status-pill">{{ 'Attiva' if procedure.active else 'Disattivata' }}</span>
             <span class="muted">{{ procedure.activities_list|length }} passaggi</span>
@@ -73,6 +76,7 @@
           <button type="submit">Salva procedura</button>
         </form>
         <form method="post" action="{{ url_for('admin_toggle_procedure', procedure_id=procedure.id) }}">
+          {{ csrf_field() }}
           <button type="submit" class="secondary">{{ 'Disattiva' if procedure.active else 'Riattiva' }}</button>
         </form>
       </article>
@@ -135,10 +139,12 @@
           <td class="table-actions">
             <a href="{{ url_for('report_detail', report_id=report.id) }}">Apri</a>
             <form method="post" action="{{ url_for('admin_update_report_status', report_id=report.id) }}">
+              {{ csrf_field() }}
               <input type="hidden" name="stato" value="Approvato" />
               <button type="submit">Approva</button>
             </form>
             <form method="post" action="{{ url_for('admin_update_report_status', report_id=report.id) }}">
+              {{ csrf_field() }}
               <input type="hidden" name="stato" value="Contestato" />
               <button type="submit" class="secondary">Contesta</button>
             </form>
@@ -157,6 +163,7 @@
     </div>
   </div>
   <form method="post" action="{{ url_for('admin_create_user') }}" class="admin-filters">
+    {{ csrf_field() }}
     <input type="text" name="display_name" placeholder="Nome visualizzato" required />
     <input type="text" name="username" placeholder="Username" required />
     <input type="password" name="password" placeholder="Password iniziale" required />
@@ -180,6 +187,7 @@
           <td class="table-actions">
             {% if current_user.id != user.id %}
               <form method="post" action="{{ url_for('admin_toggle_user', user_id=user.id) }}">
+                {{ csrf_field() }}
                 <button type="submit" class="secondary">{{ 'Disattiva' if user.active else 'Attiva' }}</button>
               </form>
             {% else %}
@@ -201,12 +209,14 @@
     <div class="panel-actions">
       <p class="muted">{{ packages|length }} pacchetti configurati</p>
       <form method="post" action="{{ url_for('admin_sync_default_packages') }}">
+        {{ csrf_field() }}
         <button type="submit" class="secondary">Sincronizza base</button>
       </form>
     </div>
   </div>
 
   <form method="post" action="{{ url_for('admin_create_package') }}" class="package-create-form">
+    {{ csrf_field() }}
     <input type="text" name="name" maxlength="120" placeholder="Nome pacchetto es. Pulizia cucina premium" required />
     <input type="number" name="sort_order" min="0" value="{{ packages|length + 1 }}" aria-label="Ordine" />
     <textarea name="activities" rows="4" placeholder="Una attività per riga" required></textarea>
@@ -217,6 +227,7 @@
     {% for package in packages %}
       <article class="package-card {% if not package.active %}is-disabled{% endif %}">
         <form method="post" action="{{ url_for('admin_update_package', package_id=package.id) }}">
+          {{ csrf_field() }}
           <div class="package-card-top">
             <span class="status-pill">{{ 'Attivo' if package.active else 'Disattivato' }}</span>
             <span class="muted">{{ package.activities_list|length }} attività</span>
@@ -240,6 +251,7 @@
           <button type="submit">Salva modifiche</button>
         </form>
         <form method="post" action="{{ url_for('admin_toggle_package', package_id=package.id) }}">
+          {{ csrf_field() }}
           <button type="submit" class="secondary">{{ 'Disattiva' if package.active else 'Riattiva' }}</button>
         </form>
       </article>

@@ -12,6 +12,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 .venv/
 
 # Python
@@ -24,6 +25,7 @@ node_modules/
 # Local data
 data/*.db
 data/uploads/
+backups/
 
 # Test/cache
 .pytest_cache/

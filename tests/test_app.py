@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.app import create_app
+from src.app import _normalize_database_uri, create_app
 from src.models import ActivityPackage, OperationalProcedure, ReportPulizia, db
 from src.services.activity_plans import load_activity_plans
 from src.services.report_template import load_report_template_fields
@@ -48,6 +48,51 @@ def test_login_success(client):
     client.post("/logout")
     response = client.post("/login", data={"username": "admin", "password": "admin123"}, follow_redirects=False)
     assert response.status_code == 302
+
+
+def test_login_form_contains_csrf_token(client):
+    client.post("/logout")
+    response = client.get("/login")
+    assert response.status_code == 200
+    assert b'name="_csrf_token"' in response.data
+
+
+def test_login_can_hide_demo_credentials(tmp_path: Path):
+    db_path = tmp_path / "login_hide_demo.db"
+    no_demo_app = create_app(
+        {
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{db_path}",
+            "SHOW_DEMO_CREDENTIALS": False,
+        }
+    )
+    no_demo_client = no_demo_app.test_client()
+
+    response = no_demo_client.get("/login")
+
+    assert response.status_code == 200
+    assert b"admin/admin123" not in response.data
+
+
+def test_csrf_blocks_post_without_token(tmp_path: Path):
+    db_path = tmp_path / "csrf.db"
+    csrf_app = create_app(
+        {
+            "SQLALCHEMY_DATABASE_URI": f"sqlite:///{db_path}",
+            "WTF_CSRF_ENABLED": True,
+        }
+    )
+    csrf_client = csrf_app.test_client()
+
+    response = csrf_client.post("/login", data={"username": "admin", "password": "admin123"})
+
+    assert response.status_code == 400
+
+
+def test_supabase_postgres_url_uses_psycopg_driver():
+    uri = _normalize_database_uri("postgresql://postgres:secret@example.supabase.co:5432/postgres")
+
+    assert uri.startswith("postgresql+psycopg://")
 
 
 def test_create_report_success(client):
@@ -284,9 +329,10 @@ def test_admin_diagnostics(client):
     response = client.get("/admin/diagnostics")
     assert response.status_code == 200
     assert b"Diagnostica sistema" in response.data
-    assert b"Database SQLite" in response.data
+    assert b"Database" in response.data
     assert b"Interconnessioni route" in response.data
     assert b"Generazione PDF" in response.data
+    assert b"Protezione CSRF" in response.data
 
 
 def test_operator_cannot_access_admin(client):
