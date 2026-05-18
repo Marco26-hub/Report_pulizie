@@ -6,6 +6,7 @@ Web app locale per creare, salvare e consultare report pulizie secondo le specif
 - Report giornaliero mobile-first con bozza e completamento
 - Dati intervento, orari, pausa e totale ore automatico
 - Checklist attività letta da `docs/v1_spec/04_CHECKLIST_ATTIVITA_V1.md`
+- Pacchetti attività modificabili da dashboard admin e salvati in SQLite
 - Anomalie lette da `docs/v1_spec/05_ANOMALIE_NOTE_V1.md`
 - Attivita svolte lette da piani Markdown in `piani/`
 - Template report letto da `templates/report_template.md`
@@ -89,6 +90,18 @@ Formato consigliato:
 ```
 
 Quando selezioni un piano nel form, il campo "Attivita svolte" viene compilato automaticamente e resta modificabile prima del salvataggio.
+
+## Pacchetti attività admin
+
+I pacchetti rapidi del form "Nuovo Report" vengono inizializzati dalla checklist V1 al primo avvio e poi salvati in SQLite.
+
+Dalla dashboard `/admin`, sezione "Pacchetti attività", l'admin può:
+
+- creare nuovi pacchetti
+- modificare nome, ordine e attività incluse
+- attivare o disattivare la visibilità nel form operatore
+
+Le attività vanno inserite una per riga. I pacchetti vuoti vengono disattivati automaticamente per evitare selezioni senza effetto nel form operatore.
 
 ## Template report Markdown
 

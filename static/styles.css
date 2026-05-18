@@ -558,6 +558,64 @@ summary {
   gap: 0.7rem;
 }
 
+.package-create-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 96px minmax(220px, 1.4fr) auto;
+  gap: 0.7rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.package-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+
+.package-card {
+  background: #fffdf7;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+}
+
+.package-card.is-disabled {
+  opacity: 0.68;
+}
+
+.package-card form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.package-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.package-card .status-pill {
+  background: #f7df9c;
+  color: #4b300d;
+  border-color: #e4bd59;
+}
+
+.compact-check {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  font-weight: 750;
+}
+
+.compact-check input {
+  accent-color: var(--primary);
+  min-height: auto;
+  width: auto;
+}
+
 .error {
   color: var(--error);
 }
@@ -644,6 +702,10 @@ td {
   }
 
   .login-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .package-create-form {
     grid-template-columns: 1fr;
   }
 

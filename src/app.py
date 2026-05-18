@@ -13,7 +13,7 @@ from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
-from src.models import ReportPhoto, ReportPulizia, ReportSend, User, db
+from src.models import ActivityPackage, ReportPhoto, ReportPulizia, ReportSend, User, db
 from src.services.activity_plans import load_activity_plans
 from src.services.report_template import load_report_template_fields, report_to_template_rows
 from src.services.reports import generate_report_pdf, generate_reports_csv, validate_report_payload
@@ -21,6 +21,7 @@ from src.services.v1_spec import (
     IMMOBILE_TYPES,
     PHOTO_CATEGORIES,
     REPORT_STATUSES,
+    QuickTemplate,
     build_quick_templates,
     load_anomalies,
     load_checklist_sections,
@@ -93,6 +94,58 @@ def _seed_default_users() -> None:
     db.session.commit()
 
 
+def _normalize_package_activities(value: str) -> list[str]:
+    activities: list[str] = []
+    seen: set[str] = set()
+    for line in value.splitlines():
+        item = line.strip()
+        if item.startswith("- "):
+            item = item[2:].strip()
+        if item and item.lower() not in seen:
+            activities.append(item)
+            seen.add(item.lower())
+    return activities
+
+
+def _seed_activity_packages() -> None:
+    if ActivityPackage.query.count() > 0:
+        return
+
+    checklist_sections = load_checklist_sections(BASE_DIR)
+    for index, template in enumerate(build_quick_templates(checklist_sections), start=1):
+        activities = "\n".join(template.activities)
+        db.session.add(
+            ActivityPackage(
+                name=template.name,
+                activities=activities,
+                active=bool(template.activities),
+                sort_order=index,
+            )
+        )
+    db.session.commit()
+
+
+def _disable_empty_activity_packages() -> None:
+    changed = False
+    for package in ActivityPackage.query.filter_by(active=True).all():
+        if not package.activities_list:
+            package.active = False
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+def _quick_templates_for_form(checklist_sections) -> list[QuickTemplate]:
+    packages = (
+        ActivityPackage.query.filter_by(active=True)
+        .order_by(ActivityPackage.sort_order.asc(), ActivityPackage.name.asc())
+        .all()
+    )
+    if packages:
+        return [QuickTemplate(package.name, package.activities_list) for package in packages]
+    return build_quick_templates(checklist_sections)
+
+
 def _current_user() -> User | None:
     user_id = session.get("user_id")
     if not user_id:
@@ -141,7 +194,7 @@ def _form_context(form=None, errors=None):
         "activity_plans": load_activity_plans(BASE_DIR),
         "anomalies": load_anomalies(BASE_DIR),
         "checklist_sections": checklist_sections,
-        "quick_templates": build_quick_templates(checklist_sections),
+        "quick_templates": _quick_templates_for_form(checklist_sections),
         "immobile_types": IMMOBILE_TYPES,
         "photo_categories": PHOTO_CATEGORIES,
         "errors": errors or {},
@@ -289,6 +342,19 @@ def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
         checks.append(_diagnostic_item("Checklist V1", "error", str(exc)))
 
     try:
+        package_count = ActivityPackage.query.count()
+        active_package_count = ActivityPackage.query.filter_by(active=True).count()
+        checks.append(
+            _diagnostic_item(
+                "Pacchetti attività admin",
+                "ok" if active_package_count else "warn",
+                f"{active_package_count} attivi su {package_count} pacchetti configurati",
+            )
+        )
+    except Exception as exc:
+        checks.append(_diagnostic_item("Pacchetti attività admin", "error", str(exc)))
+
+    try:
         anomalies = load_anomalies(BASE_DIR)
         has_none = "Nessuna anomalia" in anomalies
         checks.append(
@@ -378,6 +444,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.create_all()
         _migrate_sqlite_columns()
         _seed_default_users()
+        _seed_activity_packages()
+        _disable_empty_activity_packages()
 
     @app.context_processor
     def inject_auth_context():
@@ -462,6 +530,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         anomaly_count = sum(1 for report in reports if report.anomalie and "Nessuna anomalia" not in report.anomalie)
         sends = ReportSend.query.order_by(ReportSend.created_at.desc()).limit(20).all()
         users = User.query.order_by(User.role, User.display_name).all()
+        packages = ActivityPackage.query.order_by(ActivityPackage.sort_order.asc(), ActivityPackage.name.asc()).all()
         return render_template(
             "admin_dashboard.html",
             reports=reports,
@@ -471,6 +540,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             filters=filters,
             sends=sends,
             users=users,
+            packages=packages,
         )
 
     @app.get("/admin/diagnostics")
@@ -527,6 +597,60 @@ def create_app(test_config: dict | None = None) -> Flask:
         user.active = not user.active
         db.session.commit()
         return redirect(url_for("admin_dashboard"))
+
+    @app.post("/admin/packages")
+    @admin_required
+    def admin_create_package():
+        name = (request.form.get("name") or "").strip()
+        activities = _normalize_package_activities(request.form.get("activities") or "")
+        sort_order_raw = (request.form.get("sort_order") or "0").strip()
+        sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
+        if not name or not activities:
+            abort(400)
+        if ActivityPackage.query.filter_by(name=name).first() is not None:
+            abort(400)
+        db.session.add(
+            ActivityPackage(
+                name=name[:120],
+                activities="\n".join(activities),
+                active=True,
+                sort_order=sort_order,
+            )
+        )
+        db.session.commit()
+        return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
+
+    @app.post("/admin/packages/<int:package_id>")
+    @admin_required
+    def admin_update_package(package_id: int):
+        package = db.session.get(ActivityPackage, package_id)
+        if package is None:
+            abort(404)
+        name = (request.form.get("name") or "").strip()
+        activities = _normalize_package_activities(request.form.get("activities") or "")
+        sort_order_raw = (request.form.get("sort_order") or "0").strip()
+        sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
+        if not name:
+            abort(400)
+        duplicate = ActivityPackage.query.filter(ActivityPackage.name == name, ActivityPackage.id != package.id).first()
+        if duplicate is not None:
+            abort(400)
+        package.name = name[:120]
+        package.activities = "\n".join(activities)
+        package.sort_order = sort_order
+        package.active = request.form.get("active") == "on" and bool(activities)
+        db.session.commit()
+        return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
+
+    @app.post("/admin/packages/<int:package_id>/toggle")
+    @admin_required
+    def admin_toggle_package(package_id: int):
+        package = db.session.get(ActivityPackage, package_id)
+        if package is None:
+            abort(404)
+        package.active = not package.active
+        db.session.commit()
+        return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
 
     @app.get("/admin/photos")
     @admin_required

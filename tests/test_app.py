@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.app import create_app
-from src.models import ReportPulizia, db
+from src.models import ActivityPackage, ReportPulizia, db
 from src.services.activity_plans import load_activity_plans
 from src.services.report_template import load_report_template_fields
 
@@ -428,6 +428,62 @@ def test_new_report_has_complete_group_packages(client):
     assert b"Pulizia camere completa" in response.data
     assert b"Pulizia vetri e infissi completa" in response.data
     assert b"Kit benvenuto completo" in response.data
+
+
+def test_admin_dashboard_shows_editable_activity_packages(client):
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert b"Pacchetti attivit" in response.data
+    assert b"Crea pacchetto" in response.data
+    assert b"Pulizia cucina completa" in response.data
+    assert b"Salva modifiche" in response.data
+
+
+def test_admin_can_create_activity_package_used_in_new_report(client):
+    response = client.post(
+        "/admin/packages",
+        data={
+            "name": "Pacchetto Extra Test",
+            "sort_order": "1",
+            "activities": "Pulizia forno\nCambio asciugamani extra",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b"Pacchetto Extra Test" in new_report.data
+    assert b"Pulizia forno" in new_report.data
+    assert b"Cambio asciugamani extra" in new_report.data
+
+
+def test_admin_can_update_and_disable_activity_package(client, app):
+    with app.app_context():
+        package = ActivityPackage.query.filter_by(name="Pulizia cucina completa").first()
+        assert package is not None
+        package_id = package.id
+
+    update_response = client.post(
+        f"/admin/packages/{package_id}",
+        data={
+            "name": "Pacchetto Cucina Gold",
+            "sort_order": "2",
+            "activities": "Pulizia piano cucina\nPulizia forno gold",
+            "active": "on",
+        },
+        follow_redirects=False,
+    )
+    assert update_response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b"Pacchetto Cucina Gold" in new_report.data
+    assert b"Pulizia forno gold" in new_report.data
+
+    toggle_response = client.post(f"/admin/packages/{package_id}/toggle", follow_redirects=False)
+    assert toggle_response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b"Pacchetto Cucina Gold" not in new_report.data
 
 
 def test_load_activity_plans_reads_md_files(tmp_path: Path):

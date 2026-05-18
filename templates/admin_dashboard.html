@@ -134,6 +134,56 @@
   </table>
 </section>
 
+<section id="pacchetti" class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Configurazione</p>
+      <h3>Pacchetti attività</h3>
+    </div>
+    <p class="muted">{{ packages|length }} pacchetti configurati</p>
+  </div>
+
+  <form method="post" action="{{ url_for('admin_create_package') }}" class="package-create-form">
+    <input type="text" name="name" maxlength="120" placeholder="Nome pacchetto es. Pulizia cucina premium" required />
+    <input type="number" name="sort_order" min="0" value="{{ packages|length + 1 }}" aria-label="Ordine" />
+    <textarea name="activities" rows="4" placeholder="Una attività per riga" required></textarea>
+    <button type="submit">Crea pacchetto</button>
+  </form>
+
+  <div class="package-grid">
+    {% for package in packages %}
+      <article class="package-card {% if not package.active %}is-disabled{% endif %}">
+        <form method="post" action="{{ url_for('admin_update_package', package_id=package.id) }}">
+          <div class="package-card-top">
+            <span class="status-pill">{{ 'Attivo' if package.active else 'Disattivato' }}</span>
+            <span class="muted">{{ package.activities_list|length }} attività</span>
+          </div>
+          <label>
+            Nome pacchetto
+            <input type="text" name="name" maxlength="120" value="{{ package.name }}" required />
+          </label>
+          <label>
+            Ordine
+            <input type="number" name="sort_order" min="0" value="{{ package.sort_order }}" />
+          </label>
+          <label>
+            Attività incluse
+            <textarea name="activities" rows="7">{{ package.activities }}</textarea>
+          </label>
+          <label class="compact-check">
+            <input type="checkbox" name="active" {% if package.active %}checked{% endif %} />
+            Visibile nel form operatore
+          </label>
+          <button type="submit">Salva modifiche</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_toggle_package', package_id=package.id) }}">
+          <button type="submit" class="secondary">{{ 'Disattiva' if package.active else 'Riattiva' }}</button>
+        </form>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="report-panel">
   <div class="panel-heading">
     <div>

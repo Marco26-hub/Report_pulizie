@@ -96,3 +96,26 @@ class ReportSend(db.Model):
     canale = db.Column(db.String(40), nullable=False)
     messaggio = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class ActivityPackage(db.Model):
+    __tablename__ = "activity_packages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    activities = db.Column(db.Text, nullable=False, default="")
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def activities_list(self) -> list[str]:
+        items: list[str] = []
+        for line in self.activities.splitlines():
+            item = line.strip()
+            if item.startswith("- "):
+                item = item[2:].strip()
+            if item:
+                items.append(item)
+        return items
