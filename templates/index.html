@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Elenco Report{% endblock %}
+{% block content %}
+<section class="card">
+  <form method="get" action="{{ url_for('index') }}" class="search-row">
+    <input type="text" name="q" placeholder="Cerca per sede o operatore" value="{{ q }}" />
+    <button type="submit">Cerca</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Report Salvati</h2>
+  <div class="actions">
+    <a class="button secondary" href="{{ url_for('reports_csv') }}">Esporta CSV</a>
+  </div>
+  {% if reports %}
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Cliente</th>
+          <th>Operatore</th>
+          <th>Stato</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td>{{ report.data.strftime('%Y-%m-%d') }}</td>
+          <td>{{ report.cliente or report.sede }}</td>
+          <td>{{ report.operatore }}</td>
+          <td>{{ report.stato }}</td>
+          <td><a href="{{ url_for('report_detail', report_id=report.id) }}">Dettaglio</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Nessun report disponibile.</p>
+  {% endif %}
+</section>
+{% endblock %}

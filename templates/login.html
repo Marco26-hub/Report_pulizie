@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<section class="login-shell">
+  <div>
+    <p class="eyebrow">Accesso V1</p>
+    <h2>Admin e operatore</h2>
+    <p>Accedi con un profilo per vedere solo le funzioni e i report consentiti dal tuo ruolo.</p>
+  </div>
+
+  <form method="post" action="{{ url_for('login_post') }}" class="login-card">
+    <input type="hidden" name="next" value="{{ next_url }}" />
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <label>
+      Username
+      <input type="text" name="username" autocomplete="username" required />
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" autocomplete="current-password" required />
+    </label>
+    <button type="submit">Accedi</button>
+    <p class="muted">Demo: admin/admin123 oppure operatore/operatore123</p>
+  </form>
+</section>
+{% endblock %}

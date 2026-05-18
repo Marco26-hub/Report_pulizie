@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Nuovo Report{% endblock %}
+{% block content %}
+<section class="mobile-form-shell">
+  <div class="form-hero">
+    <div>
+      <p class="eyebrow">Daily Cleaning Report V1</p>
+      <h2>Nuovo report</h2>
+    </div>
+    <p class="status-pill">Mobile first</p>
+  </div>
+
+  <nav class="step-rail" aria-label="Avanzamento report">
+    <a href="#step-dati">Dati</a>
+    <a href="#step-orari">Orari</a>
+    <a href="#step-attivita">Attivita</a>
+    <a href="#step-note">Note</a>
+    <a href="#step-media">Media</a>
+  </nav>
+
+  <form method="post" action="{{ url_for('create_report') }}" class="form-grid mobile-report-form" enctype="multipart/form-data">
+    <details id="step-dati" class="form-step" open>
+      <summary>Dati intervento</summary>
+      <label>
+        Data intervento *
+        <input type="date" name="data" value="{{ form.get('data', '') }}" />
+        {% if errors.get('data') %}<small class="error">{{ errors.get('data') }}</small>{% endif %}
+      </label>
+
+      <label>
+        Operatore *
+        {% if current_user and not current_user.is_admin %}
+          <input type="text" maxlength="120" value="{{ current_user.display_name }}" readonly />
+          <input type="hidden" name="operatore" value="{{ current_user.display_name }}" />
+        {% else %}
+          <input type="text" name="operatore" maxlength="120" value="{{ form.get('operatore', '') }}" />
+        {% endif %}
+        {% if errors.get('operatore') %}<small class="error">{{ errors.get('operatore') }}</small>{% endif %}
+      </label>
+
+      <label>
+        Cliente / struttura
+        <input type="text" name="cliente" maxlength="160" value="{{ form.get('cliente', form.get('sede', '')) }}" />
+        {% if errors.get('cliente') %}<small class="error">{{ errors.get('cliente') }}</small>{% endif %}
+      </label>
+
+      <label>
+        Indirizzo
+        <input type="text" name="indirizzo" maxlength="240" value="{{ form.get('indirizzo', '') }}" />
+      </label>
+
+      <label>
+        Tipologia immobile
+        <select name="tipologia_immobile">
+          <option value="">Seleziona</option>
+          {% for immobile_type in immobile_types %}
+            <option value="{{ immobile_type }}" {% if form.get('tipologia_immobile') == immobile_type %}selected{% endif %}>{{ immobile_type }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </details>
+
+    <details id="step-orari" class="form-step" open>
+      <summary>Orari</summary>
+      <div class="inline-grid">
+        <label>
+          Entrata
+          <input type="time" name="orario_entrata" value="{{ form.get('orario_entrata', '') }}" />
+          {% if errors.get('orario_entrata') %}<small class="error">{{ errors.get('orario_entrata') }}</small>{% endif %}
+        </label>
+        <label>
+          Uscita
+          <input type="time" name="orario_uscita" value="{{ form.get('orario_uscita', '') }}" />
+          {% if errors.get('orario_uscita') %}<small class="error">{{ errors.get('orario_uscita') }}</small>{% endif %}
+        </label>
+        <label>
+          Pausa minuti
+          <input id="pausa-minuti" type="number" name="pausa_minuti" min="0" value="{{ form.get('pausa_minuti', '0') }}" />
+          {% if errors.get('pausa_minuti') %}<small class="error">{{ errors.get('pausa_minuti') }}</small>{% endif %}
+        </label>
+      </div>
+      <p class="status-pill">Totale ore: <span id="totale-ore">0.00</span></p>
+    </details>
+
+    <details id="step-attivita" class="form-step" open>
+      <summary>Checklist attivita</summary>
+      <label>
+        Template rapido
+        <select id="quick-template-select">
+          <option value="">Seleziona un template</option>
+          {% for template in quick_templates %}
+            <option value="{{ template.name }}" data-activities='{{ template.activities | tojson }}'>{{ template.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Piano attivita da Markdown
+        <select id="activity-plan-select" name="piano_attivita">
+          <option value="">Seleziona un piano</option>
+          {% for plan in activity_plans %}
+            <option value="{{ plan.id }}" data-activities="{{ plan.activities | e }}">{{ plan.title }} ({{ plan.source }})</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="activity-toolbar">
+        <label>
+          Cerca attivita
+          <input id="activity-search" type="search" placeholder="Es. letto, bagno, kit..." />
+        </label>
+        <p class="status-pill"><span id="selected-count">0</span> selezionate</p>
+      </div>
+
+      {% for section in checklist_sections %}
+        <details class="sub-details">
+          <summary>{{ section.title }}</summary>
+          <div class="checkbox-list">
+            {% for item in section.items %}
+              <label>
+                <input type="checkbox" name="attivita_checklist" value="{{ item }}" />
+                <span>{{ item }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </details>
+      {% endfor %}
+
+      <label>
+        Attivita extra / manuali
+        <textarea id="attivita-svolte" name="attivita_svolte" maxlength="5000" rows="5">{{ form.get('attivita_svolte', '') }}</textarea>
+        {% if errors.get('attivita_svolte') %}<small class="error">{{ errors.get('attivita_svolte') }}</small>{% endif %}
+      </label>
+    </details>
+
+    <details id="step-note" class="form-step" open>
+      <summary>Anomalie e note</summary>
+      <div class="checkbox-list anomaly-list">
+        {% for anomaly in anomalies %}
+          <label>
+            <input type="checkbox" name="anomalie" value="{{ anomaly }}" data-none-anomaly="{{ '1' if anomaly == 'Nessuna anomalia' else '0' }}" />
+            <span>{{ anomaly }}</span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <label>
+        Note anomalia
+        <textarea name="note_anomalia" maxlength="3000" rows="3">{{ form.get('note_anomalia', '') }}</textarea>
+      </label>
+
+      <label>
+        Note operative
+        <textarea name="note" maxlength="5000" rows="4">{{ form.get('note', '') }}</textarea>
+      </label>
+    </details>
+
+    <details id="step-media" class="form-step">
+      <summary>Foto opzionali</summary>
+      <label>
+        Vuoi allegare foto al report?
+        <select id="photo-choice" name="photo_choice">
+          <option value="no">No, nessuna foto</option>
+          <option value="yes">Si, allega foto</option>
+        </select>
+      </label>
+      <div id="photo-fields" class="photo-fields" hidden>
+        {% for index in range(0, 10) %}
+          <div class="photo-row">
+            <input type="file" name="photos" accept="image/jpeg,image/png,image/webp" capture="environment" />
+            <select name="photo_categories">
+              {% for category in photo_categories %}
+                <option value="{{ category }}">{{ category }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="photo_notes" placeholder="Nota foto opzionale" />
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+
+    <details class="form-step">
+      <summary>Link video esterno opzionale</summary>
+      <label>
+        Link video esterno
+        <input type="url" name="external_video_link" placeholder="https://..." value="{{ form.get('external_video_link', '') }}" />
+        {% if errors.get('external_video_link') %}<small class="error">{{ errors.get('external_video_link') }}</small>{% endif %}
+      </label>
+      <label>
+        Descrizione video
+        <textarea name="external_video_description" maxlength="2000" rows="3">{{ form.get('external_video_description', '') }}</textarea>
+      </label>
+    </details>
+
+    <label>
+      Firma
+      <input type="text" name="firma" maxlength="120" value="{{ form.get('firma', '') }}" />
+    </label>
+
+    <div class="mobile-bottom-actions">
+      <button type="submit" name="submit_action" value="Bozza" class="secondary">Salva bozza</button>
+      <button type="submit" name="submit_action" value="Completato">Completa</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const planSelect = document.querySelector("#activity-plan-select");
+  const quickTemplateSelect = document.querySelector("#quick-template-select");
+  const activitiesTextarea = document.querySelector("#attivita-svolte");
+  const checkboxes = Array.from(document.querySelectorAll("input[name='attivita_checklist']"));
+  const anomalyCheckboxes = Array.from(document.querySelectorAll("input[name='anomalie']"));
+  const photoChoice = document.querySelector("#photo-choice");
+  const photoFields = document.querySelector("#photo-fields");
+  const timeInputs = ["orario_entrata", "orario_uscita", "pausa_minuti"].map((name) => document.querySelector(`[name="${name}"]`));
+  const totalHours = document.querySelector("#totale-ore");
+  const activitySearch = document.querySelector("#activity-search");
+  const selectedCount = document.querySelector("#selected-count");
+
+  function setActivities(items) {
+    const wanted = new Set(items);
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = wanted.has(checkbox.value);
+    });
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    const count = checkboxes.filter((checkbox) => checkbox.checked).length;
+    selectedCount.textContent = String(count);
+  }
+
+  planSelect?.addEventListener("change", () => {
+    const selectedOption = planSelect.options[planSelect.selectedIndex];
+    const activities = selectedOption.dataset.activities || "";
+    if (activities) {
+      activitiesTextarea.value = activities;
+      activitiesTextarea.focus();
+    }
+  });
+
+  quickTemplateSelect?.addEventListener("change", () => {
+    const selectedOption = quickTemplateSelect.options[quickTemplateSelect.selectedIndex];
+    const activities = JSON.parse(selectedOption.dataset.activities || "[]");
+    setActivities(activities);
+  });
+
+  anomalyCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (!checkbox.checked) return;
+      if (checkbox.dataset.noneAnomaly === "1") {
+        anomalyCheckboxes.forEach((item) => {
+          if (item !== checkbox) item.checked = false;
+        });
+      } else {
+        anomalyCheckboxes.find((item) => item.dataset.noneAnomaly === "1").checked = false;
+      }
+    });
+  });
+
+  photoChoice?.addEventListener("change", () => {
+    photoFields.hidden = photoChoice.value !== "yes";
+  });
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", updateSelectedCount);
+  });
+
+  activitySearch?.addEventListener("input", () => {
+    const query = activitySearch.value.trim().toLowerCase();
+    checkboxes.forEach((checkbox) => {
+      const row = checkbox.closest("label");
+      const matches = !query || checkbox.value.toLowerCase().includes(query);
+      row.hidden = !matches;
+    });
+  });
+
+  function calculateTotalHours() {
+    const [start, end, pause] = timeInputs.map((input) => input?.value || "0");
+    if (!start || !end) {
+      totalHours.textContent = "0.00";
+      return;
+    }
+    const [startHour, startMinute] = start.split(":").map(Number);
+    const [endHour, endMinute] = end.split(":").map(Number);
+    const minutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute) - Number(pause || 0);
+    totalHours.textContent = minutes >= 0 ? (minutes / 60).toFixed(2) : "0.00";
+  }
+
+  timeInputs.forEach((input) => input?.addEventListener("input", calculateTotalHours));
+  calculateTotalHours();
+  updateSelectedCount();
+</script>
+{% endblock %}

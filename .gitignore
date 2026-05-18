@@ -11,6 +11,8 @@
 # Environment
 .env
 .env.*
+!.env.example
+.venv/
 
 # Python
 __pycache__/
@@ -18,3 +20,10 @@ __pycache__/
 
 # Node
 node_modules/
+
+# Local data
+data/*.db
+data/uploads/
+
+# Test/cache
+.pytest_cache/

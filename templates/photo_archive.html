@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Archivio Foto{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>Archivio Foto</h2>
+  {% if photos %}
+    <div class="photo-grid">
+      {% for photo in photos %}
+        <article class="photo-card">
+          <img src="{{ url_for('uploaded_file', filename=photo.filename) }}" alt="{{ photo.categoria }}" />
+          <strong>{{ photo.categoria }}</strong>
+          <span>{{ photo.report.cliente or photo.report.sede }} - {{ photo.report.data.strftime('%Y-%m-%d') }}</span>
+          <span>{{ photo.note or photo.original_filename }}</span>
+          <a href="{{ url_for('report_detail', report_id=photo.report_id) }}">Apri report</a>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>Nessuna foto caricata.</p>
+  {% endif %}
+</section>
+{% endblock %}

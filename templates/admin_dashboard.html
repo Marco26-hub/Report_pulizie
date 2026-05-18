@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Admin{% endblock %}
+{% block content %}
+<section class="report-hero">
+  <div>
+    <p class="eyebrow">Area responsabile</p>
+    <h2>Dashboard Admin</h2>
+    <div class="hero-meta">
+      <span>{{ reports|length }} report filtrati</span>
+      <span>{{ users|length }} utenti</span>
+    </div>
+  </div>
+  <a class="button quick-pdf-button" href="{{ url_for('reports_csv') }}">Esporta CSV</a>
+</section>
+
+<section class="report-metrics">
+  <article><span>Report</span><strong>{{ reports|length }}</strong></article>
+  <article><span>Ore lavorate</span><strong>{{ "%.2f"|format(total_hours) }}</strong></article>
+  <article><span>Anomalie</span><strong>{{ anomaly_count }}</strong></article>
+</section>
+
+<section class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Filtri</p>
+      <h3>Ricerca report</h3>
+    </div>
+  </div>
+  <form method="get" action="{{ url_for('admin_dashboard') }}" class="admin-filters">
+    <input type="date" name="data" value="{{ filters.data }}" />
+    <input type="text" name="operatore" placeholder="Operatore" value="{{ filters.operatore }}" />
+    <input type="text" name="cliente" placeholder="Cliente / immobile" value="{{ filters.cliente }}" />
+    <select name="stato">
+      <option value="">Tutti gli stati</option>
+      {% for status in statuses %}
+        <option value="{{ status }}" {% if filters.stato == status %}selected{% endif %}>{{ status }}</option>
+      {% endfor %}
+    </select>
+    <select name="anomalie">
+      <option value="">Tutte anomalie</option>
+      <option value="si" {% if filters.anomalie == 'si' %}selected{% endif %}>Solo con anomalie</option>
+    </select>
+    <button type="submit">Filtra</button>
+  </form>
+</section>
+
+<section class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Controllo</p>
+      <h3>Report</h3>
+    </div>
+    <a class="button secondary" href="{{ url_for('photo_archive') }}">Archivio Foto</a>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Cliente</th>
+        <th>Operatore</th>
+        <th>Stato</th>
+        <th>Ore</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in reports %}
+        <tr>
+          <td>{{ report.data.strftime('%Y-%m-%d') }}</td>
+          <td>{{ report.cliente or report.sede }}</td>
+          <td>{{ report.operatore }}</td>
+          <td>{{ report.stato }}</td>
+          <td>{{ "%.2f"|format(report.totale_ore or 0) }}</td>
+          <td class="table-actions">
+            <a href="{{ url_for('report_detail', report_id=report.id) }}">Apri</a>
+            <form method="post" action="{{ url_for('admin_update_report_status', report_id=report.id) }}">
+              <input type="hidden" name="stato" value="Approvato" />
+              <button type="submit">Approva</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_update_report_status', report_id=report.id) }}">
+              <input type="hidden" name="stato" value="Contestato" />
+              <button type="submit" class="secondary">Contesta</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Utenti</p>
+      <h3>Admin e operatori</h3>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('admin_create_user') }}" class="admin-filters">
+    <input type="text" name="display_name" placeholder="Nome visualizzato" required />
+    <input type="text" name="username" placeholder="Username" required />
+    <input type="password" name="password" placeholder="Password iniziale" required />
+    <select name="role">
+      <option value="operatore">Operatore</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button type="submit">Crea utente</button>
+  </form>
+  <table>
+    <thead>
+      <tr><th>Nome</th><th>Username</th><th>Ruolo</th><th>Stato</th><th>Azioni</th></tr>
+    </thead>
+    <tbody>
+      {% for user in users %}
+        <tr>
+          <td>{{ user.display_name }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.role }}</td>
+          <td>{{ 'Attivo' if user.active else 'Disattivato' }}</td>
+          <td class="table-actions">
+            {% if current_user.id != user.id %}
+              <form method="post" action="{{ url_for('admin_toggle_user', user_id=user.id) }}">
+                <button type="submit" class="secondary">{{ 'Disattiva' if user.active else 'Attiva' }}</button>
+              </form>
+            {% else %}
+              <span class="muted">Account corrente</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Invii</p>
+      <h3>Ultimi log</h3>
+    </div>
+  </div>
+  {% if sends %}
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Report</th><th>Canale</th><th>Operatore</th></tr>
+      </thead>
+      <tbody>
+        {% for send in sends %}
+          <tr>
+            <td>{{ send.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td><a href="{{ url_for('report_detail', report_id=send.report_id) }}">#{{ send.report_id }}</a></td>
+            <td>{{ send.canale }}</td>
+            <td>{{ send.report.operatore }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Nessun invio registrato.</p>
+  {% endif %}
+</section>
+{% endblock %}
