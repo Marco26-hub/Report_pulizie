@@ -8,7 +8,7 @@ Web app locale per creare, salvare e consultare report pulizie secondo le specif
 - Checklist attività letta da `docs/v1_spec/04_CHECKLIST_ATTIVITA_V1.md`
 - Pacchetti attività modificabili da dashboard admin e salvati in SQLite
 - Anomalie lette da `docs/v1_spec/05_ANOMALIE_NOTE_V1.md`
-- Attivita svolte lette da piani Markdown in `piani/`
+- Procedure operative modificabili da dashboard admin e inizializzate dai piani Markdown in `piani/`
 - Template report letto da `templates/report_template.md`
 - Foto opzionali con archivio admin locale
 - Link video esterno opzionale, senza upload video
@@ -73,9 +73,18 @@ source .venv/bin/activate
 pytest -q
 ```
 
-## Piani attivita Markdown
+## Procedure operative admin
 
-I piani disponibili nel form "Nuovo Report" sono letti dai file `.md` nella cartella `piani/`.
+Le procedure disponibili nel form "Nuovo Report" vengono inizializzate dai file `.md` nella cartella `piani/` e poi salvate in SQLite.
+
+Dalla dashboard `/admin`, sezione "Procedure operative", l'admin può:
+
+- creare nuove procedure
+- modificare titolo, ordine e passaggi operativi
+- attivare o disattivare la visibilità nel form operatore
+- sincronizzare eventuali procedure Markdown mancanti
+
+Nel form operatore la procedura compila il campo "Attivita extra / manuali". I pacchetti, invece, selezionano automaticamente attività della checklist.
 
 Formato consigliato:
 
@@ -89,7 +98,7 @@ Formato consigliato:
 - Lavaggio pavimenti
 ```
 
-Quando selezioni un piano nel form, il campo "Attivita svolte" viene compilato automaticamente e resta modificabile prima del salvataggio.
+Quando selezioni una procedura nel form, il campo "Attivita extra / manuali" viene compilato automaticamente e resta modificabile prima del salvataggio.
 
 ## Pacchetti attività admin
 
@@ -144,11 +153,11 @@ Campi supportati:
 - `src/app.py`: entrypoint Flask e route
 - `src/models.py`: modello dati SQLite
 - `src/services/reports.py`: validazioni e generazione PDF
-- `src/services/activity_plans.py`: lettura piani Markdown
+- `src/services/activity_plans.py`: import iniziale procedure da piani Markdown
 - `src/services/report_template.py`: lettura template report Markdown
 - `src/services/v1_spec.py`: lettura checklist/anomalie dalle specifiche V1
 - `docs/v1_spec/`: specifiche Markdown importate dallo zip
-- `piani/`: piani attivita precompilati
+- `piani/`: procedure operative Markdown precompilate
 - `templates/`: pagine HTML server-rendered
 - `static/styles.css`: stile UI
 - `tests/test_app.py`: test funzionali base

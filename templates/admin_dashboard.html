@@ -22,6 +22,64 @@
   <article><span>Anomalie</span><strong>{{ anomaly_count }}</strong></article>
 </section>
 
+<section id="procedure" class="report-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Procedure</p>
+      <h3>Procedure operative</h3>
+    </div>
+    <div class="panel-actions">
+      <p class="muted">{{ procedures|length }} procedure configurate</p>
+      <form method="post" action="{{ url_for('admin_sync_default_procedures') }}">
+        <button type="submit" class="secondary">Sincronizza Markdown</button>
+      </form>
+    </div>
+  </div>
+
+  <p class="muted">Le procedure guidano il metodo di lavoro e compilano il campo attività extra nel form operatore. I pacchetti invece selezionano rapidamente le voci della checklist.</p>
+
+  <form method="post" action="{{ url_for('admin_create_procedure') }}" class="package-create-form">
+    <input type="text" name="title" maxlength="140" placeholder="Titolo procedura es. Pulizia uffici premium" required />
+    <input type="number" name="sort_order" min="0" value="{{ procedures|length + 1 }}" aria-label="Ordine" />
+    <textarea name="activities" rows="4" placeholder="Una attività o passaggio per riga" required></textarea>
+    <button type="submit">Crea procedura</button>
+  </form>
+
+  <div class="package-grid">
+    {% for procedure in procedures %}
+      <article class="package-card {% if not procedure.active %}is-disabled{% endif %}">
+        <form method="post" action="{{ url_for('admin_update_procedure', procedure_id=procedure.id) }}">
+          <div class="package-card-top">
+            <span class="status-pill">{{ 'Attiva' if procedure.active else 'Disattivata' }}</span>
+            <span class="muted">{{ procedure.activities_list|length }} passaggi</span>
+          </div>
+          <label>
+            Titolo procedura
+            <input type="text" name="title" maxlength="140" value="{{ procedure.title }}" required />
+          </label>
+          <label>
+            Ordine
+            <input type="number" name="sort_order" min="0" value="{{ procedure.sort_order }}" />
+          </label>
+          <label>
+            Attività / passaggi operativi
+            <textarea name="activities" rows="7">{{ procedure.activities }}</textarea>
+          </label>
+          <p class="muted">Origine: {{ procedure.source or 'admin' }}</p>
+          <label class="compact-check">
+            <input type="checkbox" name="active" {% if procedure.active %}checked{% endif %} />
+            Visibile nel form operatore
+          </label>
+          <button type="submit">Salva procedura</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_toggle_procedure', procedure_id=procedure.id) }}">
+          <button type="submit" class="secondary">{{ 'Disattiva' if procedure.active else 'Riattiva' }}</button>
+        </form>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="report-panel">
   <div class="panel-heading">
     <div>

@@ -5,7 +5,8 @@
 - [x] Aggiungere esportazione PDF
 - [x] Aggiungere esportazione CSV compatibile con Excel
 - [x] Aggiungere validazioni
-- [x] Leggere attivita svolte da piani Markdown in `piani/`
+- [x] Inizializzare procedure operative dai piani Markdown in `piani/`
+- [x] Rendere le procedure operative modificabili da dashboard admin
 - [x] Importare specifiche V1 Markdown in `docs/v1_spec/`
 - [x] Aggiungere checklist attività mobile-first da specifica
 - [x] Aggiungere anomalie con esclusione "Nessuna anomalia"

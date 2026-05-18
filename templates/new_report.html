@@ -95,11 +95,11 @@
       </label>
 
       <label>
-        Piano attivita da Markdown
+        Procedura operativa
         <select id="activity-plan-select" name="piano_attivita">
-          <option value="">Seleziona un piano</option>
+          <option value="">Seleziona una procedura</option>
           {% for plan in activity_plans %}
-            <option value="{{ plan.id }}" data-activities="{{ plan.activities | e }}">{{ plan.title }} ({{ plan.source }})</option>
+            <option value="{{ plan.id }}" data-activities="{{ plan.activities | e }}">{{ plan.title }}</option>
           {% endfor %}
         </select>
       </label>

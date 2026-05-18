@@ -13,8 +13,8 @@ from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
-from src.models import ActivityPackage, ReportPhoto, ReportPulizia, ReportSend, User, db
-from src.services.activity_plans import load_activity_plans
+from src.models import ActivityPackage, OperationalProcedure, ReportPhoto, ReportPulizia, ReportSend, User, db
+from src.services.activity_plans import ActivityPlan, load_activity_plans
 from src.services.report_template import load_report_template_fields, report_to_template_rows
 from src.services.reports import generate_report_pdf, generate_reports_csv, validate_report_payload
 from src.services.v1_spec import (
@@ -107,6 +107,19 @@ def _normalize_package_activities(value: str) -> list[str]:
     return activities
 
 
+def _normalize_lines(value: str) -> list[str]:
+    lines: list[str] = []
+    seen: set[str] = set()
+    for line in value.splitlines():
+        item = line.strip()
+        if item.startswith("- "):
+            item = item[2:].strip()
+        if item and item.lower() not in seen:
+            lines.append(item)
+            seen.add(item.lower())
+    return lines
+
+
 def _seed_activity_packages() -> None:
     if ActivityPackage.query.count() > 0:
         return
@@ -140,11 +153,53 @@ def _add_missing_default_activity_packages() -> int:
     return added_count
 
 
+def _seed_operational_procedures() -> None:
+    if OperationalProcedure.query.count() > 0:
+        return
+
+    _add_missing_default_operational_procedures()
+    db.session.commit()
+
+
+def _add_missing_default_operational_procedures() -> int:
+    existing_titles = {procedure.title for procedure in OperationalProcedure.query.all()}
+    last_procedure = OperationalProcedure.query.order_by(OperationalProcedure.sort_order.desc()).first()
+    sort_order = last_procedure.sort_order if last_procedure else 0
+    added_count = 0
+
+    for plan in load_activity_plans(BASE_DIR):
+        if plan.title in existing_titles:
+            continue
+        sort_order += 1
+        db.session.add(
+            OperationalProcedure(
+                title=plan.title,
+                activities="\n".join(_normalize_lines(plan.activities)),
+                source=plan.source,
+                active=True,
+                sort_order=sort_order,
+            )
+        )
+        existing_titles.add(plan.title)
+        added_count += 1
+    return added_count
+
+
 def _disable_empty_activity_packages() -> None:
     changed = False
     for package in ActivityPackage.query.filter_by(active=True).all():
         if not package.activities_list:
             package.active = False
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+def _disable_empty_operational_procedures() -> None:
+    changed = False
+    for procedure in OperationalProcedure.query.filter_by(active=True).all():
+        if not procedure.activities_list:
+            procedure.active = False
             changed = True
     if changed:
         db.session.commit()
@@ -159,6 +214,25 @@ def _quick_templates_for_form(checklist_sections) -> list[QuickTemplate]:
     if packages:
         return [QuickTemplate(package.name, package.activities_list) for package in packages]
     return build_quick_templates(checklist_sections)
+
+
+def _operational_procedures_for_form() -> list[ActivityPlan]:
+    procedures = (
+        OperationalProcedure.query.filter_by(active=True)
+        .order_by(OperationalProcedure.sort_order.asc(), OperationalProcedure.title.asc())
+        .all()
+    )
+    if procedures:
+        return [
+            ActivityPlan(
+                id=f"procedure-{procedure.id}",
+                title=procedure.title,
+                activities="\n".join(f"- {item}" for item in procedure.activities_list),
+                source=procedure.source or "admin",
+            )
+            for procedure in procedures
+        ]
+    return load_activity_plans(BASE_DIR)
 
 
 def _current_user() -> User | None:
@@ -206,7 +280,7 @@ def admin_required(view):
 def _form_context(form=None, errors=None):
     checklist_sections = load_checklist_sections(BASE_DIR)
     return {
-        "activity_plans": load_activity_plans(BASE_DIR),
+        "activity_plans": _operational_procedures_for_form(),
         "anomalies": load_anomalies(BASE_DIR),
         "checklist_sections": checklist_sections,
         "quick_templates": _quick_templates_for_form(checklist_sections),
@@ -370,6 +444,19 @@ def _run_diagnostics(app: Flask) -> list[dict[str, str]]:
         checks.append(_diagnostic_item("Pacchetti attività admin", "error", str(exc)))
 
     try:
+        procedure_count = OperationalProcedure.query.count()
+        active_procedure_count = OperationalProcedure.query.filter_by(active=True).count()
+        checks.append(
+            _diagnostic_item(
+                "Procedure operative admin",
+                "ok" if active_procedure_count else "warn",
+                f"{active_procedure_count} attive su {procedure_count} procedure configurate",
+            )
+        )
+    except Exception as exc:
+        checks.append(_diagnostic_item("Procedure operative admin", "error", str(exc)))
+
+    try:
         anomalies = load_anomalies(BASE_DIR)
         has_none = "Nessuna anomalia" in anomalies
         checks.append(
@@ -460,7 +547,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         _migrate_sqlite_columns()
         _seed_default_users()
         _seed_activity_packages()
+        _seed_operational_procedures()
         _disable_empty_activity_packages()
+        _disable_empty_operational_procedures()
 
     @app.context_processor
     def inject_auth_context():
@@ -546,6 +635,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         sends = ReportSend.query.order_by(ReportSend.created_at.desc()).limit(20).all()
         users = User.query.order_by(User.role, User.display_name).all()
         packages = ActivityPackage.query.order_by(ActivityPackage.sort_order.asc(), ActivityPackage.name.asc()).all()
+        procedures = OperationalProcedure.query.order_by(OperationalProcedure.sort_order.asc(), OperationalProcedure.title.asc()).all()
         return render_template(
             "admin_dashboard.html",
             reports=reports,
@@ -556,6 +646,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             sends=sends,
             users=users,
             packages=packages,
+            procedures=procedures,
         )
 
     @app.get("/admin/diagnostics")
@@ -688,6 +779,85 @@ def create_app(test_config: dict | None = None) -> Flask:
         else:
             flash("Tutti i pacchetti base sono già presenti.", "info")
         return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
+
+    @app.post("/admin/procedures")
+    @admin_required
+    def admin_create_procedure():
+        title = (request.form.get("title") or "").strip()
+        activities = _normalize_lines(request.form.get("activities") or "")
+        sort_order_raw = (request.form.get("sort_order") or "0").strip()
+        sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
+        if not title or not activities:
+            flash("Inserisci titolo procedura e almeno una attività.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="procedure"))
+        if OperationalProcedure.query.filter_by(title=title).first() is not None:
+            flash("Esiste già una procedura con questo titolo.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="procedure"))
+        db.session.add(
+            OperationalProcedure(
+                title=title[:140],
+                activities="\n".join(activities),
+                source="admin",
+                active=True,
+                sort_order=sort_order,
+            )
+        )
+        db.session.commit()
+        flash(f"Procedura '{title[:140]}' creata.", "success")
+        return redirect(url_for("admin_dashboard", _anchor="procedure"))
+
+    @app.post("/admin/procedures/<int:procedure_id>")
+    @admin_required
+    def admin_update_procedure(procedure_id: int):
+        procedure = db.session.get(OperationalProcedure, procedure_id)
+        if procedure is None:
+            abort(404)
+        title = (request.form.get("title") or "").strip()
+        activities = _normalize_lines(request.form.get("activities") or "")
+        sort_order_raw = (request.form.get("sort_order") or "0").strip()
+        sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
+        if not title:
+            flash("Il titolo procedura è obbligatorio.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="procedure"))
+        duplicate = OperationalProcedure.query.filter(OperationalProcedure.title == title, OperationalProcedure.id != procedure.id).first()
+        if duplicate is not None:
+            flash("Esiste già una procedura con questo titolo.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="procedure"))
+        procedure.title = title[:140]
+        procedure.activities = "\n".join(activities)
+        procedure.sort_order = sort_order
+        procedure.active = request.form.get("active") == "on" and bool(activities)
+        if not procedure.source:
+            procedure.source = "admin"
+        db.session.commit()
+        flash(f"Procedura '{procedure.title}' aggiornata.", "success")
+        return redirect(url_for("admin_dashboard", _anchor="procedure"))
+
+    @app.post("/admin/procedures/<int:procedure_id>/toggle")
+    @admin_required
+    def admin_toggle_procedure(procedure_id: int):
+        procedure = db.session.get(OperationalProcedure, procedure_id)
+        if procedure is None:
+            abort(404)
+        if not procedure.active and not procedure.activities_list:
+            flash("Aggiungi almeno una attività prima di riattivare la procedura.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="procedure"))
+        procedure.active = not procedure.active
+        db.session.commit()
+        flash(f"Procedura '{procedure.title}' {'riattivata' if procedure.active else 'disattivata'}.", "success")
+        return redirect(url_for("admin_dashboard", _anchor="procedure"))
+
+    @app.post("/admin/procedures/sync-defaults")
+    @admin_required
+    def admin_sync_default_procedures():
+        added_count = _add_missing_default_operational_procedures()
+        db.session.commit()
+        _disable_empty_operational_procedures()
+        if added_count:
+            flash(f"Sincronizzazione completata: {added_count} procedure Markdown aggiunte.", "success")
+        else:
+            flash("Tutte le procedure Markdown sono già presenti.", "info")
+        return redirect(url_for("admin_dashboard", _anchor="procedure"))
 
     @app.get("/admin/photos")
     @admin_required

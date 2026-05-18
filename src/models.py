@@ -119,3 +119,27 @@ class ActivityPackage(db.Model):
             if item:
                 items.append(item)
         return items
+
+
+class OperationalProcedure(db.Model):
+    __tablename__ = "operational_procedures"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(140), nullable=False, unique=True, index=True)
+    activities = db.Column(db.Text, nullable=False, default="")
+    source = db.Column(db.String(240), nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def activities_list(self) -> list[str]:
+        items: list[str] = []
+        for line in self.activities.splitlines():
+            item = line.strip()
+            if item.startswith("- "):
+                item = item[2:].strip()
+            if item:
+                items.append(item)
+        return items

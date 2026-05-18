@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.app import create_app
-from src.models import ActivityPackage, ReportPulizia, db
+from src.models import ActivityPackage, OperationalProcedure, ReportPulizia, db
 from src.services.activity_plans import load_activity_plans
 from src.services.report_template import load_report_template_fields
 
@@ -376,6 +376,7 @@ def test_healthcheck(client):
 def test_new_report_loads_markdown_activity_plans(client):
     response = client.get("/reports/new")
     assert response.status_code == 200
+    assert b"Procedura operativa" in response.data
     assert b"Piano Pulizia Uffici" in response.data
     assert b"Svuotamento cestini" in response.data
 
@@ -514,6 +515,92 @@ def test_admin_can_sync_missing_default_activity_packages(client, app):
 
     new_report = client.get("/reports/new")
     assert b"Pulizia cucina completa" in new_report.data
+
+
+def test_admin_dashboard_shows_editable_operational_procedures(client):
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert b"Procedure operative" in response.data
+    assert b"Crea procedura" in response.data
+    assert b"Sincronizza Markdown" in response.data
+    assert b"Piano Pulizia Uffici" in response.data
+    assert b"Salva procedura" in response.data
+
+
+def test_admin_procedure_validation_shows_message(client):
+    response = client.post(
+        "/admin/procedures",
+        data={"title": "", "activities": ""},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Inserisci titolo procedura" in response.data
+
+
+def test_admin_can_create_operational_procedure_used_in_new_report(client):
+    response = client.post(
+        "/admin/procedures",
+        data={
+            "title": "Procedura Extra Test",
+            "sort_order": "1",
+            "activities": "Controllo chiavi\nFoto fine intervento",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b"Procedura Extra Test" in new_report.data
+    assert b"Controllo chiavi" in new_report.data
+    assert b"Foto fine intervento" in new_report.data
+
+
+def test_admin_can_update_and_disable_operational_procedure(client, app):
+    with app.app_context():
+        procedure = OperationalProcedure.query.filter_by(title="Piano Pulizia Uffici").first()
+        assert procedure is not None
+        procedure_id = procedure.id
+
+    update_response = client.post(
+        f"/admin/procedures/{procedure_id}",
+        data={
+            "title": "Procedura Uffici Gold",
+            "sort_order": "2",
+            "activities": "Brief iniziale\nControllo sale riunioni",
+            "active": "on",
+        },
+        follow_redirects=False,
+    )
+    assert update_response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b"Procedura Uffici Gold" in new_report.data
+    assert b"Controllo sale riunioni" in new_report.data
+
+    toggle_response = client.post(f"/admin/procedures/{procedure_id}/toggle", follow_redirects=False)
+    assert toggle_response.status_code == 302
+
+    new_report = client.get("/reports/new")
+    assert b">Procedura Uffici Gold</option>" not in new_report.data
+
+
+def test_admin_can_sync_missing_default_operational_procedures(client, app):
+    with app.app_context():
+        procedure = OperationalProcedure.query.filter_by(title="Piano Pulizia Uffici").first()
+        assert procedure is not None
+        db.session.delete(procedure)
+        db.session.commit()
+
+    missing_report = client.get("/reports/new")
+    assert b"Piano Pulizia Uffici" not in missing_report.data
+
+    response = client.post("/admin/procedures/sync-defaults", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Sincronizzazione completata" in response.data
+    assert b"Piano Pulizia Uffici" in response.data
+
+    new_report = client.get("/reports/new")
+    assert b"Piano Pulizia Uffici" in new_report.data
 
 
 def test_load_activity_plans_reads_md_files(tmp_path: Path):
