@@ -435,8 +435,19 @@ def test_admin_dashboard_shows_editable_activity_packages(client):
     assert response.status_code == 200
     assert b"Pacchetti attivit" in response.data
     assert b"Crea pacchetto" in response.data
+    assert b"Sincronizza base" in response.data
     assert b"Pulizia cucina completa" in response.data
     assert b"Salva modifiche" in response.data
+
+
+def test_admin_package_validation_shows_message(client):
+    response = client.post(
+        "/admin/packages",
+        data={"name": "", "activities": ""},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Inserisci nome pacchetto" in response.data
 
 
 def test_admin_can_create_activity_package_used_in_new_report(client):
@@ -483,7 +494,26 @@ def test_admin_can_update_and_disable_activity_package(client, app):
     assert toggle_response.status_code == 302
 
     new_report = client.get("/reports/new")
-    assert b"Pacchetto Cucina Gold" not in new_report.data
+    assert b'<option value="Pacchetto Cucina Gold"' not in new_report.data
+
+
+def test_admin_can_sync_missing_default_activity_packages(client, app):
+    with app.app_context():
+        package = ActivityPackage.query.filter_by(name="Pulizia cucina completa").first()
+        assert package is not None
+        db.session.delete(package)
+        db.session.commit()
+
+    missing_report = client.get("/reports/new")
+    assert b"Pulizia cucina completa" not in missing_report.data
+
+    response = client.post("/admin/packages/sync-defaults", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Sincronizzazione completata" in response.data
+    assert b"Pulizia cucina completa" in response.data
+
+    new_report = client.get("/reports/new")
+    assert b"Pulizia cucina completa" in new_report.data
 
 
 def test_load_activity_plans_reads_md_files(tmp_path: Path):

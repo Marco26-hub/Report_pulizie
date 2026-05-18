@@ -130,6 +130,38 @@ button.secondary,
   font-size: 0.9rem;
 }
 
+.flash-stack {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.flash-message {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-weight: 750;
+  margin: 0;
+  padding: 0.8rem 0.95rem;
+}
+
+.flash-message.success {
+  background: #e6f6df;
+  border-color: #b7d9bd;
+  color: #1d5f2b;
+}
+
+.flash-message.error {
+  background: #fde2e2;
+  border-color: #e08a8a;
+  color: #9b1c1c;
+}
+
+.flash-message.info {
+  background: #fff1bf;
+  border-color: #e6c266;
+  color: #70460d;
+}
+
 .eyebrow {
   color: var(--accent);
   font-size: 0.78rem;
@@ -450,6 +482,19 @@ summary {
 }
 
 .panel-heading h3 {
+  margin: 0;
+}
+
+.panel-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: flex-end;
+}
+
+.panel-actions form,
+.panel-actions p {
   margin: 0;
 }
 

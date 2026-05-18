@@ -100,6 +100,7 @@ Dalla dashboard `/admin`, sezione "Pacchetti attività", l'admin può:
 - creare nuovi pacchetti
 - modificare nome, ordine e attività incluse
 - attivare o disattivare la visibilità nel form operatore
+- sincronizzare eventuali pacchetti base mancanti dalla checklist Markdown
 
 Le attività vanno inserite una per riga. I pacchetti vuoti vengono disattivati automaticamente per evitare selezioni senza effetto nel form operatore.
 

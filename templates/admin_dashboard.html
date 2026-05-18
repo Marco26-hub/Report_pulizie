@@ -140,7 +140,12 @@
       <p class="eyebrow">Configurazione</p>
       <h3>Pacchetti attività</h3>
     </div>
-    <p class="muted">{{ packages|length }} pacchetti configurati</p>
+    <div class="panel-actions">
+      <p class="muted">{{ packages|length }} pacchetti configurati</p>
+      <form method="post" action="{{ url_for('admin_sync_default_packages') }}">
+        <button type="submit" class="secondary">Sincronizza base</button>
+      </form>
+    </div>
   </div>
 
   <form method="post" action="{{ url_for('admin_create_package') }}" class="package-create-form">

@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote_plus, urlparse
 
 from dotenv import load_dotenv
-from flask import Flask, abort, current_app, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, current_app, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -111,18 +111,33 @@ def _seed_activity_packages() -> None:
     if ActivityPackage.query.count() > 0:
         return
 
+    _add_missing_default_activity_packages()
+    db.session.commit()
+
+
+def _add_missing_default_activity_packages() -> int:
     checklist_sections = load_checklist_sections(BASE_DIR)
-    for index, template in enumerate(build_quick_templates(checklist_sections), start=1):
+    existing_names = {package.name for package in ActivityPackage.query.all()}
+    last_package = ActivityPackage.query.order_by(ActivityPackage.sort_order.desc()).first()
+    sort_order = last_package.sort_order if last_package else 0
+    added_count = 0
+
+    for template in build_quick_templates(checklist_sections):
+        if template.name in existing_names:
+            continue
+        sort_order += 1
         activities = "\n".join(template.activities)
         db.session.add(
             ActivityPackage(
                 name=template.name,
                 activities=activities,
                 active=bool(template.activities),
-                sort_order=index,
+                sort_order=sort_order,
             )
         )
-    db.session.commit()
+        existing_names.add(template.name)
+        added_count += 1
+    return added_count
 
 
 def _disable_empty_activity_packages() -> None:
@@ -606,9 +621,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         sort_order_raw = (request.form.get("sort_order") or "0").strip()
         sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
         if not name or not activities:
-            abort(400)
+            flash("Inserisci nome pacchetto e almeno una attività.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
         if ActivityPackage.query.filter_by(name=name).first() is not None:
-            abort(400)
+            flash("Esiste già un pacchetto con questo nome.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
         db.session.add(
             ActivityPackage(
                 name=name[:120],
@@ -618,6 +635,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
         )
         db.session.commit()
+        flash(f"Pacchetto '{name[:120]}' creato.", "success")
         return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
 
     @app.post("/admin/packages/<int:package_id>")
@@ -631,15 +649,18 @@ def create_app(test_config: dict | None = None) -> Flask:
         sort_order_raw = (request.form.get("sort_order") or "0").strip()
         sort_order = int(sort_order_raw) if sort_order_raw.isdigit() else 0
         if not name:
-            abort(400)
+            flash("Il nome pacchetto è obbligatorio.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
         duplicate = ActivityPackage.query.filter(ActivityPackage.name == name, ActivityPackage.id != package.id).first()
         if duplicate is not None:
-            abort(400)
+            flash("Esiste già un pacchetto con questo nome.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
         package.name = name[:120]
         package.activities = "\n".join(activities)
         package.sort_order = sort_order
         package.active = request.form.get("active") == "on" and bool(activities)
         db.session.commit()
+        flash(f"Pacchetto '{package.name}' aggiornato.", "success")
         return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
 
     @app.post("/admin/packages/<int:package_id>/toggle")
@@ -648,8 +669,24 @@ def create_app(test_config: dict | None = None) -> Flask:
         package = db.session.get(ActivityPackage, package_id)
         if package is None:
             abort(404)
+        if not package.active and not package.activities_list:
+            flash("Aggiungi almeno una attività prima di riattivare il pacchetto.", "error")
+            return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
         package.active = not package.active
         db.session.commit()
+        flash(f"Pacchetto '{package.name}' {'riattivato' if package.active else 'disattivato'}.", "success")
+        return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
+
+    @app.post("/admin/packages/sync-defaults")
+    @admin_required
+    def admin_sync_default_packages():
+        added_count = _add_missing_default_activity_packages()
+        db.session.commit()
+        _disable_empty_activity_packages()
+        if added_count:
+            flash(f"Sincronizzazione completata: {added_count} pacchetti base aggiunti.", "success")
+        else:
+            flash("Tutti i pacchetti base sono già presenti.", "info")
         return redirect(url_for("admin_dashboard", _anchor="pacchetti"))
 
     @app.get("/admin/photos")
